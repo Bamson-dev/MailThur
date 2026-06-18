@@ -47,30 +47,21 @@ const wordVariants = {
 export default function ComingSoon() {
   const launchDateString = process.env.NEXT_PUBLIC_LAUNCH_DATE;
   const [timeRemaining, setTimeRemaining] = useState<TimeRemaining | null>(null);
-  const [isLaunched, setIsLaunched] = useState(false);
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (!launchDateString) {
-      setIsLaunched(true);
       return;
     }
 
     const target = new Date(launchDateString);
 
     if (Number.isNaN(target.getTime())) {
-      setIsLaunched(true);
       return;
     }
 
     const tick = () => {
       const remaining = getTimeRemaining(target);
-      if (!remaining) {
-        setIsLaunched(true);
-        setTimeRemaining(null);
-        return;
-      }
-      setIsLaunched(false);
       setTimeRemaining(remaining);
     };
 
@@ -124,15 +115,7 @@ export default function ComingSoon() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.1, duration: 0.6 }}
         >
-          {isLaunched ? (
-            <motion.p
-              className="text-xl font-medium text-violet-200"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-            >
-              We&apos;re live. Check back shortly.
-            </motion.p>
-          ) : timeRemaining ? (
+          {timeRemaining ? (
             <div className="flex justify-center gap-3 sm:gap-5">
               <FlipCountdownUnit value={timeRemaining.days} label="Days" />
               <FlipCountdownUnit value={timeRemaining.hours} label="Hours" />
