@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import AnimatedBackground from "./coming-soon/AnimatedBackground";
 import FlipCountdownUnit from "./coming-soon/FlipCountdownUnit";
-import WaitlistForm from "./coming-soon/WaitlistForm";
 import "./coming-soon/coming-soon.css";
 
 interface TimeRemaining {
@@ -126,8 +125,6 @@ export default function ComingSoon() {
             <div className="h-[5.5rem]" />
           )}
         </motion.div>
-
-        <WaitlistForm />
       </div>
     </main>
   );
