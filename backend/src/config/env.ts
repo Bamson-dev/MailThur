@@ -22,6 +22,8 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_REDIRECT_URI: z.string().url(),
+  SESSION_SECRET: z.string().min(32),
+  COOKIE_DOMAIN: z.string().optional(),
   REDIS_URL: z.string().min(1),
 });
 

@@ -1,12 +1,14 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { corsOrigins } from "./config/env";
 import { globalRateLimiter } from "./middleware/rateLimit";
 import { errorHandler } from "./middleware/errorHandler";
 import healthRoutes from "./api/health.routes";
 import exampleRoutes from "./api/example.routes";
 import waitlistRoutes from "./api/waitlist.routes";
+import authRouter from "./api/auth-router";
 import { logger } from "./utils/logger";
 import { env } from "./config/env";
 
@@ -57,12 +59,14 @@ app.use(
 );
 
 app.use(express.json());
+app.use(cookieParser());
 
 // Global rate limiting — every route is limited by default
 app.use(globalRateLimiter);
 
 // Routes
 app.use(healthRoutes);
+app.use(authRouter);
 app.use("/api", exampleRoutes);
 app.use("/api", waitlistRoutes);
 
