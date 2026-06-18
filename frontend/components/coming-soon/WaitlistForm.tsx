@@ -72,78 +72,76 @@ export default function WaitlistForm() {
 
   return (
     <div className="mx-auto mt-14 max-w-md">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-xl">
-        <AnimatePresence mode="wait">
-          {isSuccess ? (
-            <motion.div
-              key="success"
-              initial={{ opacity: 0, y: 12 }}
+      <AnimatePresence mode="wait">
+        {isSuccess ? (
+          <motion.div
+            key="success"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.35 }}
+            className="py-4 text-center"
+          >
+            <SuccessCheckmark />
+            <motion.p
+              className="mt-5 text-sm text-violet-100/90 sm:text-base"
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.35 }}
-              className="py-4 text-center"
+              transition={{ delay: 0.25 }}
             >
-              <SuccessCheckmark />
+              {submitMessage}
+            </motion.p>
+          </motion.div>
+        ) : (
+          <motion.form
+            key="form"
+            onSubmit={handleSubmit}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.25 }}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input
+                type="email"
+                name="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+                className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-violet-300/40 backdrop-blur-sm transition focus:border-violet-400/50 focus:outline-none focus:ring-1 focus:ring-violet-400/40"
+              />
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="mailthur-btn-shimmer mailthur-btn-glow rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:from-violet-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSubmitting ? "Submitting..." : "Notify Me"}
+              </button>
+            </div>
+
+            {emailError ? (
               <motion.p
-                className="mt-5 text-sm text-violet-100/90 sm:text-base"
-                initial={{ opacity: 0, y: 8 }}
+                className="mt-3 text-sm text-red-400"
+                initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.25 }}
+              >
+                {emailError}
+              </motion.p>
+            ) : null}
+
+            {submitMessage && !isSuccess ? (
+              <motion.p
+                className="mt-3 text-sm text-violet-200/80"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
               >
                 {submitMessage}
               </motion.p>
-            </motion.div>
-          ) : (
-            <motion.form
-              key="form"
-              onSubmit={handleSubmit}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.25 }}
-            >
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <input
-                  type="email"
-                  name="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-violet-300/40 backdrop-blur-sm transition focus:border-violet-400/50 focus:outline-none focus:ring-1 focus:ring-violet-400/40"
-                />
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="mailthur-btn-shimmer mailthur-btn-glow rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:from-violet-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSubmitting ? "Submitting..." : "Notify Me"}
-                </button>
-              </div>
-
-              {emailError ? (
-                <motion.p
-                  className="mt-3 text-sm text-red-400"
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  {emailError}
-                </motion.p>
-              ) : null}
-
-              {submitMessage && !isSuccess ? (
-                <motion.p
-                  className="mt-3 text-sm text-violet-200/80"
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  {submitMessage}
-                </motion.p>
-              ) : null}
-            </motion.form>
-          )}
-        </AnimatePresence>
-      </div>
+            ) : null}
+          </motion.form>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
