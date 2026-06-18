@@ -6,6 +6,7 @@ import { globalRateLimiter } from "./middleware/rateLimit";
 import { errorHandler } from "./middleware/errorHandler";
 import healthRoutes from "./api/health.routes";
 import exampleRoutes from "./api/example.routes";
+import waitlistRoutes from "./api/waitlist.routes";
 import { logger } from "./utils/logger";
 import { env } from "./config/env";
 
@@ -63,6 +64,7 @@ app.use(globalRateLimiter);
 // Routes
 app.use(healthRoutes);
 app.use("/api", exampleRoutes);
+app.use("/api", waitlistRoutes);
 
 // Global error handler — MUST be last
 app.use(errorHandler);
