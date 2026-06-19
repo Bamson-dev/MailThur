@@ -20,6 +20,12 @@ import {
   recordInboxSend,
   InboxRotationState,
 } from "../utils/inbox-rotation";
+import {
+  checkUserCanSend,
+  incrementTrialEmailsSent,
+  expireSubscription,
+  TRIAL_EMAIL_CAP,
+} from "../repositories/subscriptions.repository";
 import { logger } from "../utils/logger";
 import { appendTrackingPixel } from "../utils/tracking";
 
@@ -109,9 +115,24 @@ export async function processSendQueue(): Promise<{
   const errors: string[] = [];
 
   const stepsCache = new Map<string, Awaited<ReturnType<typeof getCampaignSteps>>>();
+  const sendEligibilityCache = new Map<
+    string,
+    Awaited<ReturnType<typeof checkUserCanSend>>
+  >();
 
   for (const contact of contacts) {
     processed += 1;
+
+    let eligibility = sendEligibilityCache.get(contact.user_email);
+    if (!eligibility) {
+      eligibility = await checkUserCanSend(contact.user_email);
+      sendEligibilityCache.set(contact.user_email, eligibility);
+    }
+
+    if (!eligibility.allowed) {
+      skipped += 1;
+      continue;
+    }
 
     if (!(await isCampaignActive(contact.campaign_id))) {
       skipped += 1;
@@ -175,6 +196,20 @@ export async function processSendQueue(): Promise<{
       await finalizeSendLog(sendLogId, "sent");
 
       recordInboxSend(inbox.id, rotation);
+
+      const updatedSubscription = await incrementTrialEmailsSent(
+        contact.user_email
+      );
+      if (
+        updatedSubscription.plan === "trial" &&
+        updatedSubscription.trial_emails_sent >= TRIAL_EMAIL_CAP
+      ) {
+        await expireSubscription(contact.user_email);
+        sendEligibilityCache.set(contact.user_email, {
+          allowed: false,
+          reason: "trial_email_cap",
+        });
+      }
 
       const nextStep = contact.current_step + 1;
       const nextStepConfig = steps.find((s) => s.step_order === nextStep);

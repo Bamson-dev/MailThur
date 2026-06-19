@@ -88,6 +88,42 @@ export async function upsertConnectedInbox(data: InboxUpsertData): Promise<void>
  * List connected inboxes for the authenticated user only.
  * Never returns access_token or refresh_token.
  */
+export async function inboxExistsForUser(
+  userEmail: string,
+  inboxEmail: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("connected_inboxes")
+    .select("id")
+    .eq("user_email", userEmail)
+    .eq("inbox_email", inboxEmail)
+    .maybeSingle();
+
+  if (error) {
+    logger.error("Failed to check existing inbox", error);
+    throw new Error("Inbox lookup failed");
+  }
+
+  return !!data;
+}
+
+export async function countConnectedInboxesForUser(
+  userEmail: string
+): Promise<number> {
+  const { count, error } = await supabase
+    .from("connected_inboxes")
+    .select("id", { count: "exact", head: true })
+    .eq("user_email", userEmail)
+    .neq("status", "disconnected");
+
+  if (error) {
+    logger.error("Failed to count connected inboxes", error);
+    throw new Error("Inbox count failed");
+  }
+
+  return count ?? 0;
+}
+
 export async function listInboxesForUser(
   userEmail: string
 ): Promise<InboxPublic[]> {

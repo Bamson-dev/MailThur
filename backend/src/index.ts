@@ -11,6 +11,10 @@ import waitlistRoutes from "./api/waitlist.routes";
 import authRouter from "./api/auth-router";
 import campaignsRouter from "./api/campaigns-router";
 import analyticsRouter from "./api/analytics-router";
+import billingRouter, {
+  registerPaystackWebhook,
+  registerFlutterwaveWebhook,
+} from "./api/billing-router";
 import trackRouter from "./api/track-router";
 import webhooksRouter from "./api/webhooks-router";
 import { logger } from "./utils/logger";
@@ -63,8 +67,12 @@ app.use(
   })
 );
 
+registerPaystackWebhook(app);
+
 app.use(express.json());
 app.use(cookieParser());
+
+registerFlutterwaveWebhook(app);
 
 // Global rate limiting — every route is limited by default
 app.use(globalRateLimiter);
@@ -76,6 +84,7 @@ app.use("/track", trackRouter);
 app.use("/webhooks", webhooksRouter);
 app.use("/api", campaignsRouter);
 app.use("/api", analyticsRouter);
+app.use("/api", billingRouter);
 app.use("/api", exampleRoutes);
 app.use("/api", waitlistRoutes);
 

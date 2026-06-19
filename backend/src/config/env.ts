@@ -48,6 +48,22 @@ const envSchema = z.object({
     emptyToUndefined,
     z.string().min(1).default("redis://localhost:6379")
   ),
+  PAYSTACK_SECRET_KEY: z.preprocess(
+    emptyToUndefined,
+    z.string().min(1).default("sk_test_mailthur_dev_placeholder")
+  ),
+  PAYSTACK_PUBLIC_KEY: z.preprocess(
+    emptyToUndefined,
+    z.string().min(1).default("pk_test_mailthur_dev_placeholder")
+  ),
+  FLUTTERWAVE_SECRET_KEY: z.preprocess(
+    emptyToUndefined,
+    z.string().min(1).default("FLWSECK_TEST-mailthur_dev_placeholder")
+  ),
+  FLUTTERWAVE_PUBLIC_KEY: z.preprocess(
+    emptyToUndefined,
+    z.string().min(1).default("FLWPUBK_TEST-mailthur_dev_placeholder")
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;

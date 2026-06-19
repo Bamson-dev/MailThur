@@ -25,7 +25,10 @@ import {
   disconnectInbox,
   getActiveInboxesWithTokensForUser,
   updateInboxTokens,
+  countConnectedInboxesForUser,
+  inboxExistsForUser,
 } from "../repositories/connected-inboxes.repository";
+import { checkUserCanConnectInbox } from "../repositories/subscriptions.repository";
 import { refreshGoogleAccessToken } from "../utils/google-oauth";
 import { sendGmailMessage } from "../utils/gmail-send";
 import { env } from "../config/env";
@@ -50,9 +53,15 @@ type InboxParams = z.infer<typeof inboxParamsSchema>;
 
 const router = Router();
 
-function dashboardRedirect(outcome: "success" | "error"): string {
+function dashboardRedirect(
+  outcome: "success" | "error" | "limit"
+): string {
   const url = new URL("/dashboard", env.FRONTEND_URL);
-  url.searchParams.set("connected", outcome);
+  if (outcome === "limit") {
+    url.searchParams.set("billing", "inbox_limit");
+  } else {
+    url.searchParams.set("connected", outcome);
+  }
   return url.toString();
 }
 
@@ -72,20 +81,37 @@ router.post(
   }
 );
 
-router.get("/auth/google", (req: Request, res: Response) => {
-  let userEmail = getAuthenticatedUser(req);
+router.get("/auth/google", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    let userEmail = getAuthenticatedUser(req);
 
-  if (!userEmail && typeof req.query.session === "string") {
-    userEmail = verifySessionToken(req.query.session);
+    if (!userEmail && typeof req.query.session === "string") {
+      userEmail = verifySessionToken(req.query.session);
+    }
+
+    if (!userEmail) {
+      res.redirect(dashboardRedirect("error"));
+      return;
+    }
+
+    const connectedCount = await countConnectedInboxesForUser(userEmail);
+    const eligibility = await checkUserCanConnectInbox(userEmail, connectedCount);
+
+    if (!eligibility.allowed) {
+      res.status(403).json({
+        error: `Inbox limit reached (${eligibility.maxInboxes} on ${eligibility.plan} plan). Upgrade to connect more inboxes.`,
+        code: "inbox_limit",
+        plan: eligibility.plan,
+        max_inboxes: eligibility.maxInboxes,
+      });
+      return;
+    }
+
+    const state = createOAuthState(userEmail);
+    res.redirect(buildGoogleConsentUrl(state));
+  } catch (error) {
+    next(error);
   }
-
-  if (!userEmail) {
-    res.redirect(dashboardRedirect("error"));
-    return;
-  }
-
-  const state = createOAuthState(userEmail);
-  res.redirect(buildGoogleConsentUrl(state));
 });
 
 router.get(
@@ -126,6 +152,25 @@ router.get(
       const tokenExpiresAt = new Date(
         Date.now() + tokens.expires_in * 1000
       );
+
+      const isReconnect = await inboxExistsForUser(userEmail, inboxEmail);
+      if (!isReconnect) {
+        const connectedCount = await countConnectedInboxesForUser(userEmail);
+        const eligibility = await checkUserCanConnectInbox(
+          userEmail,
+          connectedCount
+        );
+
+        if (!eligibility.allowed) {
+          logger.warn("Inbox connect blocked by plan limit", {
+            userEmail,
+            plan: eligibility.plan,
+            maxInboxes: eligibility.maxInboxes,
+          });
+          res.redirect(dashboardRedirect("limit"));
+          return;
+        }
+      }
 
       await upsertConnectedInbox({
         userEmail,
