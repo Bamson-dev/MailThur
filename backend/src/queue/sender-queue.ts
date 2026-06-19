@@ -46,12 +46,15 @@ export async function processSendQueue(): Promise<{
   sent: number;
   failed: number;
   skipped: number;
+  errors: string[];
 }> {
   const contacts = await fetchEligibleContacts();
   let processed = 0;
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+
+  const errors: string[] = [];
 
   const stepsCache = new Map<string, Awaited<ReturnType<typeof getCampaignSteps>>>();
 
@@ -147,6 +150,9 @@ export async function processSendQueue(): Promise<{
       }
 
       failed += 1;
+      if (errors.length < 5) {
+        errors.push(message.slice(0, 200));
+      }
       logger.error("Campaign send failed", error, {
         campaignId: contact.campaign_id,
         contactId: contact.id,
@@ -154,5 +160,5 @@ export async function processSendQueue(): Promise<{
     }
   }
 
-  return { processed, sent, failed, skipped };
+  return { processed, sent, failed, skipped, errors };
 }
