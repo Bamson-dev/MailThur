@@ -99,6 +99,34 @@ export async function startQueueSchedulers(): Promise<void> {
   logger.info("Queue schedulers started");
 }
 
+export async function getQueueStatus(): Promise<{
+  redisReachable: boolean;
+  schedulersStarted: boolean;
+  repeatableJobs: Array<{ key: string; name: string; every: number | null }>;
+}> {
+  const redisReachable = await isRedisAvailable();
+
+  if (!redisReachable || !schedulersStarted || !sendQueue) {
+    return {
+      redisReachable,
+      schedulersStarted,
+      repeatableJobs: [],
+    };
+  }
+
+  const repeatableJobs = await sendQueue.getRepeatableJobs();
+
+  return {
+    redisReachable,
+    schedulersStarted,
+    repeatableJobs: repeatableJobs.map((job) => ({
+      key: job.key,
+      name: job.name,
+      every: job.every ?? null,
+    })),
+  };
+}
+
 export async function triggerSendQueueNow(): Promise<
   Awaited<ReturnType<typeof processSendQueue>>
 > {
