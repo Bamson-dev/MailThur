@@ -2,7 +2,7 @@
 set -euo pipefail
 
 API_URL="${API_URL:-https://staging-backend.mailthur.com}"
-TEST_EMAIL="${TEST_EMAIL:-mailthur01@gmail.com}"
+TEST_EMAIL="${TEST_EMAIL:-bamzonline01@gmail.com}"
 
 echo "==> Health check"
 curl -sf "$API_URL/health" | head -c 200
@@ -33,9 +33,9 @@ echo "==> Import CSV with valid + invalid rows"
 CSV_FILE=$(mktemp)
 cat > "$CSV_FILE" <<'EOF'
 email,first_name,business_name,city
-valid.test@example.com,Alice,Acme Corp,Denver
+bamzonline01@gmail.com,Don,MailThur,Staging
 not-an-email,Bob,Bad Inc,Boulder
-charlie@example.com,Charlie,Charlie LLC,Aurora
+valid.test@example.com,Charlie,Test LLC,Aurora
 EOF
 
 IMPORT_RESP=$(curl -sf -X POST "$API_URL/api/campaigns/$CAMPAIGN_ID/contacts/csv" \

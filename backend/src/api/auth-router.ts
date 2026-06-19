@@ -23,7 +23,11 @@ import {
   upsertConnectedInbox,
   listInboxesForUser,
   disconnectInbox,
+  getActiveInboxesWithTokensForUser,
+  updateInboxTokens,
 } from "../repositories/connected-inboxes.repository";
+import { refreshGoogleAccessToken } from "../utils/google-oauth";
+import { sendGmailMessage } from "../utils/gmail-send";
 import { env } from "../config/env";
 import { logger } from "../utils/logger";
 
@@ -176,6 +180,74 @@ router.delete(
       }
 
       res.json({ message: "Inbox disconnected." });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/api/inboxes/test-send",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const inboxes = await getActiveInboxesWithTokensForUser(userEmail);
+
+      if (inboxes.length === 0) {
+        res.status(404).json({ error: "No active inbox found." });
+        return;
+      }
+
+      const inbox = inboxes[0];
+      let accessToken = inbox.access_token;
+      let tokenSource = "stored";
+
+      try {
+        const refreshed = await refreshGoogleAccessToken(inbox.refresh_token);
+        accessToken = refreshed.accessToken;
+        await updateInboxTokens(
+          inbox.id,
+          refreshed.accessToken,
+          refreshed.expiresAt
+        );
+        tokenSource = "refreshed";
+      } catch (refreshError) {
+        logger.warn("Test send using stored token after refresh failed", {
+          inboxId: inbox.id,
+        });
+      }
+
+      try {
+        await sendGmailMessage({
+          accessToken,
+          fromEmail: inbox.inbox_email,
+          toEmail: inbox.inbox_email,
+          subject: "MailThur inbox send test",
+          body: "This is a MailThur staging send test to verify Gmail API connectivity.",
+        });
+
+        res.json({
+          success: true,
+          inbox_email: inbox.inbox_email,
+          token_source: tokenSource,
+        });
+      } catch (sendError) {
+        const detail =
+          sendError instanceof Error
+            ? sendError.message.slice(0, 500)
+            : "Unknown send error";
+
+        logger.error("Inbox test send failed", sendError, { inboxId: inbox.id });
+
+        res.json({
+          success: false,
+          inbox_email: inbox.inbox_email,
+          token_source: tokenSource,
+          error: "Gmail send failed. Check inbox connection and Google Cloud settings.",
+          detail,
+        });
+      }
     } catch (error) {
       next(error);
     }

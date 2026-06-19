@@ -29,16 +29,20 @@ async function ensureValidAccessToken(inbox: {
   refresh_token: string;
   token_expires_at: string;
 }): Promise<string> {
-  const expiresAt = new Date(inbox.token_expires_at);
-  const bufferMs = 60 * 1000;
+  try {
+    const refreshed = await refreshGoogleAccessToken(inbox.refresh_token);
+    await updateInboxTokens(inbox.id, refreshed.accessToken, refreshed.expiresAt);
+    return refreshed.accessToken;
+  } catch {
+    const expiresAt = new Date(inbox.token_expires_at);
+    const bufferMs = 60 * 1000;
 
-  if (expiresAt.getTime() - bufferMs > Date.now()) {
-    return inbox.access_token;
+    if (expiresAt.getTime() - bufferMs > Date.now()) {
+      return inbox.access_token;
+    }
+
+    throw new Error("Google token refresh failed");
   }
-
-  const refreshed = await refreshGoogleAccessToken(inbox.refresh_token);
-  await updateInboxTokens(inbox.id, refreshed.accessToken, refreshed.expiresAt);
-  return refreshed.accessToken;
 }
 
 async function sendEmailWithRetry(
