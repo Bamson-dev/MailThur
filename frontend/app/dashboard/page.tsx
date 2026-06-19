@@ -10,49 +10,49 @@ import {
   Send,
 } from "lucide-react";
 import AuthGate from "@/components/dashboard/AuthGate";
-import Card from "@/components/dashboard/Card";
+import Card, { SectionHeading } from "@/components/dashboard/Card";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import StatCard from "@/components/dashboard/StatCard";
 import StatusBadge from "@/components/dashboard/StatusBadge";
-import { ActivityEvent, fetchRecentActivity } from "@/lib/activity";
-import { fetchDashboardOverview } from "@/lib/dashboard";
-import { fetchInboxAnalytics, formatRate } from "@/lib/analytics";
-import { getConnectInboxUrl } from "@/lib/inboxes";
+import HealthScoreRing from "@/components/dashboard/HealthScoreRing";
+import PlatformStatsBanner from "@/components/dashboard/PlatformStatsBanner";
+import FirstSuccessCard from "@/components/dashboard/FirstSuccessCard";
+import ConnectInboxButton from "@/components/dashboard/ConnectInboxButton";
+import {
+  StatCardSkeleton,
+  CardListSkeleton,
+  Skeleton,
+} from "@/components/dashboard/Skeleton";
+import {
+  DashboardOverview,
+  fetchDashboardOverview,
+  fetchHealthScore,
+  HealthScore,
+} from "@/lib/dashboard";
+import { formatRate } from "@/lib/analytics";
 import { getUserErrorMessage } from "@/lib/api";
-
-function formatTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
-}
+import {
+  activityDotColor,
+  bounceColor,
+  capBarColor,
+  timeAgo,
+} from "@/lib/utils";
 
 export default function DashboardOverviewPage() {
-  const [overview, setOverview] = useState({
-    emails_sent_this_month: 0,
-    avg_open_rate: 0,
-    avg_reply_rate: 0,
-    active_campaigns_count: 0,
-  });
-  const [events, setEvents] = useState<ActivityEvent[]>([]);
-  const [inboxes, setInboxes] = useState<
-    Awaited<ReturnType<typeof fetchInboxAnalytics>>
-  >([]);
+  const [data, setData] = useState<DashboardOverview | null>(null);
+  const [healthScore, setHealthScore] = useState<HealthScore | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [overviewData, activityData, inboxData] = await Promise.all([
+      const [overview, health] = await Promise.all([
         fetchDashboardOverview(),
-        fetchRecentActivity(20),
-        fetchInboxAnalytics(),
+        fetchHealthScore(),
       ]);
-      setOverview(overviewData);
-      setEvents(activityData);
-      setInboxes(inboxData);
+      setData(overview);
+      setHealthScore(health);
       setError("");
     } catch (err) {
       setError(getUserErrorMessage(err));
@@ -65,6 +65,10 @@ export default function DashboardOverviewPage() {
     load();
   }, [load]);
 
+  const stats = data?.stats;
+  const events = data?.activity ?? [];
+  const inboxes = data?.inboxes ?? [];
+
   return (
     <AuthGate onSignedIn={load}>
       <DashboardHeader
@@ -74,73 +78,119 @@ export default function DashboardOverviewPage() {
           <>
             <Link
               href="/dashboard/campaigns/new"
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent/90"
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
             >
               New Campaign
             </Link>
-            <a
-              href={getConnectInboxUrl()}
-              className="rounded-lg border border-card-border px-4 py-2 text-sm font-medium text-white hover:bg-card"
-            >
+            <ConnectInboxButton className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-surface">
               Connect Inbox
-            </a>
+            </ConnectInboxButton>
           </>
         }
       />
 
+      {error ? (
+        <p className="mb-6 text-sm text-danger">{error}</p>
+      ) : null}
+
       {loading ? (
-        <p className="text-sm text-muted">Loading overview...</p>
-      ) : error ? (
-        <p className="text-sm text-danger">{error}</p>
-      ) : (
         <>
+          <Skeleton className="mb-6 h-36 w-full rounded-xl" />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <StatCardSkeleton key={i} />
+            ))}
+          </div>
+        </>
+      ) : stats && healthScore ? (
+        <>
+          <Card className="mb-6">
+            <HealthScoreRing
+              score={healthScore.score}
+              nextAction={healthScore.next_action}
+            />
+          </Card>
+
+          <div className="mb-6">
+            <FirstSuccessCard milestones={healthScore.milestones} />
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Emails sent this month"
-              value={overview.emails_sent_this_month}
+              value={stats.emails_sent_this_month}
               icon={Send}
+              accent="accent"
             />
             <StatCard
               label="Avg open rate"
-              value={formatRate(overview.avg_open_rate)}
+              value={stats.avg_open_rate}
               icon={Mail}
+              accent="success"
+              isPercentage
             />
             <StatCard
               label="Avg reply rate"
-              value={formatRate(overview.avg_reply_rate)}
+              value={stats.avg_reply_rate}
               icon={Reply}
+              accent="info"
+              isPercentage
             />
             <StatCard
               label="Active campaigns"
-              value={overview.active_campaigns_count}
+              value={stats.active_campaigns_count}
               icon={Megaphone}
+              accent="warning"
             />
           </div>
 
-          <div className="mt-8 grid gap-6 lg:grid-cols-5">
-            <Card className="lg:col-span-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-                Recent activity
-              </h2>
+          <PlatformStatsBanner />
+
+          <div className="grid gap-6 lg:grid-cols-5">
+            <Card className="lg:col-span-3 !p-0">
+              <div className="border-b border-border-subtle px-6 py-4">
+                <SectionHeading>Recent activity</SectionHeading>
+              </div>
               {events.length === 0 ? (
-                <p className="mt-4 text-sm text-muted">No activity yet.</p>
+                <p className="px-6 py-8 text-sm text-muted">
+                  No sending activity yet.
+                </p>
               ) : (
-                <ul className="mt-4 max-h-96 space-y-3 overflow-y-auto scrollbar-thin">
-                  {events.map((event) => (
+                <ul className="max-h-[28rem] overflow-y-auto scrollbar-thin">
+                  {events.map((event, index) => (
                     <li
                       key={event.send_log_id}
-                      className="rounded-lg border border-card-border bg-content px-4 py-3"
+                      className={`flex items-start gap-3 border-b border-border-subtle px-6 py-3.5 ${
+                        index % 2 === 0 ? "bg-surface" : "bg-transparent"
+                      }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-white">
-                          {event.campaign_name} → {event.contact_email}
+                      <span
+                        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${activityDotColor(
+                          event.status,
+                          event.opened_at
+                        )}`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-white">
+                          {event.contact_email}
+                          <span className="text-muted">
+                            {" "}
+                            · {event.campaign_name}
+                          </span>
                         </p>
-                        <StatusBadge status={event.status} />
+                        <p className="mt-0.5 text-xs text-muted">
+                          {event.inbox_email} · {timeAgo(event.sent_at)}
+                        </p>
                       </div>
-                      <p className="mt-1 text-xs text-muted">
-                        From {event.inbox_email} · {formatTime(event.sent_at)}
-                        {event.opened_at ? " · opened" : ""}
-                      </p>
+                      <StatusBadge
+                        status={
+                          event.status === "bounced"
+                            ? "bounced"
+                            : event.opened_at
+                              ? "opened"
+                              : event.status
+                        }
+                      />
                     </li>
                   ))}
                 </ul>
@@ -150,16 +200,14 @@ export default function DashboardOverviewPage() {
             <Card className="lg:col-span-2">
               <div className="flex items-center gap-2">
                 <Inbox className="h-4 w-4 text-accent" />
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-                  Inbox health
-                </h2>
+                <SectionHeading>Inbox health</SectionHeading>
               </div>
               {inboxes.length === 0 ? (
                 <p className="mt-4 text-sm text-muted">
                   No inboxes connected.{" "}
-                  <a href={getConnectInboxUrl()} className="text-accent hover:underline">
+                  <ConnectInboxButton className="text-accent hover:underline">
                     Connect one
-                  </a>
+                  </ConnectInboxButton>
                 </p>
               ) : (
                 <ul className="mt-4 space-y-4">
@@ -171,44 +219,48 @@ export default function DashboardOverviewPage() {
                             (inbox.sent_today / inbox.daily_send_cap) * 100
                           )
                         : 0;
-                    const bounceColor =
-                      inbox.bounce_rate_7d > 10
-                        ? "bg-danger"
-                        : inbox.bounce_rate_7d > 5
-                          ? "bg-warning"
-                          : "bg-success";
+                    const bounce = bounceColor(inbox.bounce_rate_7d);
 
                     return (
                       <li
-                        key={inbox.inbox_id}
-                        className="rounded-lg border border-card-border bg-content p-4"
+                        key={inbox.id}
+                        className="rounded-xl border border-border-subtle bg-surface p-4"
                       >
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium text-white">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-bold text-white">
                             {inbox.inbox_email}
                           </p>
-                          <StatusBadge status={inbox.status} />
+                          <span className="shrink-0 rounded-full bg-info/15 px-2 py-0.5 text-xs font-medium text-info">
+                            Google
+                          </span>
                         </div>
                         <div className="mt-3">
-                          <div className="flex justify-between text-xs text-muted">
-                            <span>Daily cap</span>
-                            <span>
-                              {inbox.sent_today}/{inbox.daily_send_cap}
-                            </span>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-muted">
+                              Today&apos;s sending
+                            </p>
+                            <p className="text-xs text-body">
+                              {inbox.sent_today} / {inbox.daily_send_cap}
+                            </p>
                           </div>
-                          <div className="mt-1 h-2 overflow-hidden rounded-full bg-card-border">
+                          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-border-subtle">
                             <div
-                              className="h-full rounded-full bg-accent"
+                              className={`h-full rounded-full transition-all ${capBarColor(capPct)}`}
                               style={{ width: `${capPct}%` }}
                             />
                           </div>
                         </div>
-                        <p className="mt-2 text-xs text-muted">
-                          Bounce rate (7d):{" "}
-                          <span className={`font-medium ${bounceColor.replace("bg-", "text-")}`}>
-                            {formatRate(inbox.bounce_rate_7d)}
-                          </span>
-                        </p>
+                        <div className="mt-3 flex items-center justify-between">
+                          <StatusBadge status={inbox.status} />
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${bounce.dot}`}
+                            />
+                            <span className={`text-xs font-medium ${bounce.text}`}>
+                              {formatRate(inbox.bounce_rate_7d)} bounce
+                            </span>
+                          </div>
+                        </div>
                       </li>
                     );
                   })}
@@ -216,8 +268,28 @@ export default function DashboardOverviewPage() {
               )}
             </Card>
           </div>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            <Link
+              href="/dashboard/campaigns/new"
+              className="group rounded-xl border border-border-subtle bg-surface p-6 transition-colors hover:border-accent/40"
+            >
+              <Megaphone className="h-5 w-5 text-accent" />
+              <p className="mt-3 font-semibold text-white">New Campaign</p>
+              <p className="mt-1 text-sm text-muted">
+                Build a sequence and start reaching prospects.
+              </p>
+            </Link>
+            <ConnectInboxButton className="group rounded-xl border border-border-subtle bg-surface p-6 text-left transition-colors hover:border-accent/40">
+              <Inbox className="h-5 w-5 text-accent" />
+              <p className="mt-3 font-semibold text-white">Connect Inbox</p>
+              <p className="mt-1 text-sm text-muted">
+                Link Gmail to send from your own account.
+              </p>
+            </ConnectInboxButton>
+          </div>
         </>
-      )}
+      ) : null}
     </AuthGate>
   );
 }

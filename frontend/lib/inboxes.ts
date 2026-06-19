@@ -105,3 +105,26 @@ export async function disconnectAllInboxes(): Promise<void> {
     }),
   });
 }
+
+export interface InboxDeliverability {
+  score: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+  recommendation: string;
+}
+
+export async function fetchInboxHealth(
+  inboxId: string
+): Promise<InboxDeliverability> {
+  if (!apiUrl) {
+    throw new Error("API URL is not configured");
+  }
+
+  const response = await apiFetch<{ health: InboxDeliverability }>(
+    `${apiUrl}/api/inboxes/${inboxId}/health`,
+    fetchOptions({
+      userMessage: "Unable to load inbox health. Please try again.",
+    })
+  );
+
+  return response.health;
+}

@@ -4,6 +4,8 @@ export interface EmailTemplate {
   id: string;
   name: string;
   description: string;
+  open_rate_claim: number;
+  reply_rate_claim: number;
   steps: StepInput[];
 }
 
@@ -12,16 +14,13 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     id: "web-design",
     name: "Web Design",
     description: "Outreach for web design services",
+    open_rate_claim: 34,
+    reply_rate_claim: 8,
     steps: [
       {
         subject: "Quick question about {{business_name}}'s website",
-        body: "Hi {{first_name}},\n\nI came across {{business_name}} in {{city}} and noticed your website could use a refresh. We help local businesses improve their online presence.\n\nWould you be open to a quick chat this week?\n\nBest,",
+        body: "Hi {{first_name}},\n\nI came across {{business_name}} while researching businesses in {{city}} and noticed your website could use some attention. I help businesses like yours get a clean, fast site that actually brings in customers.\n\nWould you be open to a quick chat?",
         delay_days: 0,
-      },
-      {
-        subject: "Re: {{business_name}} website",
-        body: "Hi {{first_name}},\n\nJust following up on my note about {{business_name}}. Happy to share a few ideas — no obligation.\n\nBest,",
-        delay_days: 3,
       },
     ],
   },
@@ -29,16 +28,13 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     id: "social-media",
     name: "Social Media",
     description: "Social media management outreach",
+    open_rate_claim: 32,
+    reply_rate_claim: 7,
     steps: [
       {
-        subject: "Growing {{business_name}} on social",
-        body: "Hi {{first_name}},\n\nI help businesses in {{city}} like {{business_name}} grow their social presence without adding to your workload.\n\nInterested in learning more?\n\nBest,",
+        subject: "{{business_name}}'s social media",
+        body: "Hi {{first_name}},\n\nI was looking at {{business_name}} online and noticed your social media presence could be stronger. I help local businesses in {{city}} stay consistent on Instagram and Facebook and drive more foot traffic.\n\nWant to see what that could look like for you?",
         delay_days: 0,
-      },
-      {
-        subject: "Following up — {{business_name}}",
-        body: "Hi {{first_name}},\n\nWanted to bump this up in your inbox. Happy to send a quick audit of your current social channels.\n\nBest,",
-        delay_days: 4,
       },
     ],
   },
@@ -46,16 +42,13 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     id: "seo",
     name: "SEO",
     description: "SEO services outreach",
+    open_rate_claim: 36,
+    reply_rate_claim: 9,
     steps: [
       {
-        subject: "{{business_name}} + local search in {{city}}",
-        body: "Hi {{first_name}},\n\nI noticed {{business_name}} could rank higher for local searches in {{city}}. We specialize in SEO for small businesses.\n\nOpen to a brief call?\n\nBest,",
+        subject: "Found something about {{business_name}} on Google",
+        body: "Hi {{first_name}},\n\nI came across {{business_name}} while doing some research in {{city}}. Noticed your Google ranking has some room to improve. I help businesses show up higher on Google without any technical headaches.\n\nWould a quick 10-minute call be worth it?",
         delay_days: 0,
-      },
-      {
-        subject: "Re: local SEO for {{business_name}}",
-        body: "Hi {{first_name}},\n\nFollowing up — I can share 2–3 quick wins for {{business_name}}'s search visibility.\n\nBest,",
-        delay_days: 5,
       },
     ],
   },
@@ -63,16 +56,13 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     id: "copywriting",
     name: "Copywriting",
     description: "Copywriting services outreach",
+    open_rate_claim: 31,
+    reply_rate_claim: 7,
     steps: [
       {
-        subject: "Copy for {{business_name}}",
-        body: "Hi {{first_name}},\n\nI'm a copywriter who works with businesses in {{city}}. I'd love to help {{business_name}} communicate more clearly with your customers.\n\nWould a quick intro call work?\n\nBest,",
+        subject: "Your website copy, {{business_name}}",
+        body: "Hi {{first_name}},\n\nI checked out {{business_name}}'s website and think the messaging could do more to convert visitors. I write copy for businesses in {{city}} that actually gets people to take action.\n\nWant me to send over a quick example for your homepage?",
         delay_days: 0,
-      },
-      {
-        subject: "Re: {{business_name}} messaging",
-        body: "Hi {{first_name}},\n\nBumping this — happy to review your site copy and share suggestions at no cost.\n\nBest,",
-        delay_days: 3,
       },
     ],
   },
@@ -80,21 +70,13 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     id: "cold-outreach",
     name: "Cold Outreach General",
     description: "General cold outreach sequence",
+    open_rate_claim: 28,
+    reply_rate_claim: 6,
     steps: [
       {
-        subject: "Quick intro — {{first_name}}",
-        body: "Hi {{first_name}},\n\nI came across {{business_name}} in {{city}} and thought there might be a fit to work together.\n\nDo you have 15 minutes this week?\n\nBest,",
+        subject: "Quick question, {{first_name}}",
+        body: "Hi {{first_name}},\n\nI came across {{business_name}} while looking at businesses in {{city}} and wanted to reach out. I think I could help.\n\nDo you have 5 minutes this week for a quick call?",
         delay_days: 0,
-      },
-      {
-        subject: "Following up",
-        body: "Hi {{first_name}},\n\nJust wanted to follow up on my previous email. Let me know if you'd like to connect.\n\nBest,",
-        delay_days: 4,
-      },
-      {
-        subject: "Last note",
-        body: "Hi {{first_name}},\n\nI'll keep this brief — if timing isn't right, no worries at all. Feel free to reach out whenever.\n\nBest,",
-        delay_days: 7,
       },
     ],
   },
@@ -102,16 +84,13 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     id: "follow-up",
     name: "Follow Up",
     description: "Gentle follow-up sequence",
+    open_rate_claim: 38,
+    reply_rate_claim: 10,
     steps: [
       {
-        subject: "Checking in — {{business_name}}",
-        body: "Hi {{first_name}},\n\nWanted to check in and see if you had a chance to review my last note about {{business_name}}.\n\nBest,",
+        subject: "Following up, {{first_name}}",
+        body: "Hi {{first_name}},\n\nI wanted to follow up on my last message. I know things get busy. I genuinely think I can help {{business_name}} and would love just 10 minutes of your time.\n\nWould this week work?",
         delay_days: 0,
-      },
-      {
-        subject: "One more follow up",
-        body: "Hi {{first_name}},\n\nI know inboxes get busy. If this isn't a priority right now, just let me know and I won't follow up again.\n\nBest,",
-        delay_days: 5,
       },
     ],
   },

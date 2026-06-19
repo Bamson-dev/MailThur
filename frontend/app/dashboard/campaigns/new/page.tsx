@@ -21,6 +21,7 @@ import {
 } from "@/lib/campaigns";
 import { EMAIL_TEMPLATES } from "@/lib/templates";
 import { getUserErrorMessage } from "@/lib/api";
+import { useToast } from "@/components/dashboard/ToastProvider";
 
 const TOKENS = ["{{first_name}}", "{{business_name}}", "{{city}}"];
 
@@ -34,6 +35,7 @@ const STEPS = ["Name", "Sequence", "Contacts", "Review"];
 
 export default function NewCampaignPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [campaignId, setCampaignId] = useState<string | null>(null);
@@ -102,6 +104,7 @@ export default function NewCampaignPage() {
         }
         const campaign = await createCampaign(name.trim());
         setCampaignId(campaign.id);
+        toast("Campaign created");
       } else if (step === 1 && campaignId) {
         await saveCampaignSteps(campaignId, sequence);
       }
@@ -123,6 +126,7 @@ export default function NewCampaignPage() {
       setImportSummary(
         `Imported ${result.imported} contact(s). Skipped ${result.skipped} invalid row(s).`
       );
+      toast(`Imported ${result.imported} contact(s)`);
     } catch (err) {
       setError(getUserErrorMessage(err));
     } finally {
@@ -136,6 +140,7 @@ export default function NewCampaignPage() {
     setError("");
     try {
       await launchCampaign(campaignId);
+      toast("Campaign launched");
       router.push(`/dashboard/campaigns/${campaignId}`);
     } catch (err) {
       setError(getUserErrorMessage(err));
@@ -401,20 +406,32 @@ export default function NewCampaignPage() {
 
       {showTemplates ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl border border-card-border bg-card p-6">
+          <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border-subtle bg-surface p-6">
             <h3 className="text-lg font-semibold text-white">
               Choose a template
             </h3>
+            <p className="mt-2 text-xs text-muted">
+              Open and reply rates are industry benchmarks and will vary based on
+              your list quality, personalization, and sending reputation.
+            </p>
             <ul className="mt-4 space-y-2">
               {EMAIL_TEMPLATES.map((template) => (
                 <li key={template.id}>
                   <button
                     type="button"
                     onClick={() => applyTemplate(template.id)}
-                    className="w-full rounded-lg border border-card-border bg-content px-4 py-3 text-left hover:border-accent"
+                    className="w-full rounded-lg border border-border-subtle bg-content px-4 py-3 text-left hover:border-accent"
                   >
                     <p className="font-medium text-white">{template.name}</p>
                     <p className="text-xs text-muted">{template.description}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-success/15 px-2 py-0.5 text-xs font-medium text-success">
+                        Avg {template.open_rate_claim}% open rate
+                      </span>
+                      <span className="rounded-full bg-info/15 px-2 py-0.5 text-xs font-medium text-info">
+                        Avg {template.reply_rate_claim}% reply rate
+                      </span>
+                    </div>
                   </button>
                 </li>
               ))}
@@ -422,7 +439,7 @@ export default function NewCampaignPage() {
             <button
               type="button"
               onClick={() => setShowTemplates(false)}
-              className="mt-4 w-full rounded-lg border border-card-border py-2 text-sm text-white"
+              className="mt-4 w-full rounded-lg border border-border-subtle py-2 text-sm text-white"
             >
               Cancel
             </button>

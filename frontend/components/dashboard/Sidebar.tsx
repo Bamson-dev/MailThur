@@ -45,14 +45,14 @@ export default function Sidebar({ userEmail, plan, onSignOut }: SidebarProps) {
 
   const sidebarContent = (
     <>
-      <div className="flex items-center gap-2 px-5 py-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
+      <div className="flex items-center gap-3 px-5 py-6">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-dark">
           <Mail className="h-4 w-4 text-white" />
         </div>
-        <span className="text-lg font-semibold text-white">MailThur</span>
+        <span className="text-lg font-bold text-white">MailThur</span>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3">
+      <nav className="flex-1 space-y-0.5 px-3">
         {NAV_ITEMS.map(({ href, label, icon: Icon, exact }) => {
           const active = exact
             ? pathname === href
@@ -63,10 +63,10 @@ export default function Sidebar({ userEmail, plan, onSignOut }: SidebarProps) {
               href={href}
               onClick={() => setMobileOpen(false)}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg border-l-[3px] px-3 py-2.5 text-sm font-medium transition-colors",
                 active
-                  ? "border-l-2 border-accent bg-white/5 text-white"
-                  : "border-l-2 border-transparent text-muted hover:bg-white/5 hover:text-white"
+                  ? "border-accent bg-accent/10 text-white"
+                  : "border-transparent text-muted hover:text-body"
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -76,21 +76,21 @@ export default function Sidebar({ userEmail, plan, onSignOut }: SidebarProps) {
         })}
       </nav>
 
-      <div className="border-t border-card-border p-4">
+      <div className="border-t border-border-subtle p-4">
         {userEmail ? (
-          <p className="truncate text-sm text-white">{userEmail}</p>
+          <p className="truncate text-xs text-muted">{userEmail}</p>
         ) : (
-          <p className="text-sm text-muted">Not signed in</p>
+          <p className="text-xs text-muted">Not signed in</p>
         )}
         {plan ? (
-          <span className="mt-2 inline-flex rounded-full bg-accent/20 px-2.5 py-0.5 text-xs font-medium text-accent">
+          <span className="mt-2 inline-flex rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent">
             {PLAN_LABELS[plan]}
           </span>
         ) : null}
         <button
           type="button"
           onClick={onSignOut}
-          className="mt-4 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted hover:bg-white/5 hover:text-white"
+          className="mt-4 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:text-body"
         >
           <LogOut className="h-4 w-4" />
           Sign out
@@ -104,7 +104,7 @@ export default function Sidebar({ userEmail, plan, onSignOut }: SidebarProps) {
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-4 z-40 rounded-lg bg-sidebar p-2 text-white lg:hidden"
+        className="fixed left-4 top-4 z-40 rounded-lg border border-border-subtle bg-sidebar p-2 text-white lg:hidden"
         aria-label="Open menu"
       >
         <Menu className="h-5 w-5" />
@@ -119,7 +119,7 @@ export default function Sidebar({ userEmail, plan, onSignOut }: SidebarProps) {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-sidebar transition-transform lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-border-subtle bg-gradient-to-b from-sidebar-top to-sidebar-bottom transition-transform lg:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >

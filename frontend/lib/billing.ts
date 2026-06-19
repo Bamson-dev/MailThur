@@ -69,3 +69,39 @@ export async function initiateCheckout(plan: UpgradePlan): Promise<string> {
 
   return response.payment_url;
 }
+
+export interface InboxEligibility {
+  allowed: boolean;
+  plan: PlanId;
+  max_inboxes: number;
+  connected_inboxes: number;
+}
+
+export async function fetchInboxEligibility(): Promise<InboxEligibility> {
+  if (!apiUrl) {
+    throw new Error("API URL is not configured");
+  }
+
+  return apiFetch<InboxEligibility>(
+    `${apiUrl}/api/billing/inbox-eligibility`,
+    fetchOptions({
+      userMessage: "Unable to verify inbox limit. Please try again.",
+    })
+  );
+}
+
+export const UPGRADE_PLANS: Array<{
+  id: UpgradePlan;
+  name: string;
+  price: string;
+  inboxes: string;
+}> = [
+  { id: "starter", name: "Starter", price: "$19/month", inboxes: "2 inboxes" },
+  { id: "growth", name: "Growth", price: "$39/month", inboxes: "6 inboxes" },
+  {
+    id: "agency",
+    name: "Agency",
+    price: "$79/month",
+    inboxes: "Unlimited inboxes",
+  },
+];

@@ -2,19 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
-  Legend,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { BarChart3 } from "lucide-react";
 import AuthGate from "@/components/dashboard/AuthGate";
-import Card from "@/components/dashboard/Card";
+import Card, { SectionHeading } from "@/components/dashboard/Card";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import EmptyState from "@/components/dashboard/EmptyState";
 import StatusBadge from "@/components/dashboard/StatusBadge";
+import { Skeleton, TableSkeleton } from "@/components/dashboard/Skeleton";
 import {
   CampaignAnalytics,
   DailyAnalyticsPoint,
@@ -29,6 +32,30 @@ import { cn } from "@/lib/utils";
 
 type SortKey = "name" | "sent" | "open_rate" | "reply_rate";
 type Days = 7 | 30 | 90;
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; name: string; color: string }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div className="rounded-lg border border-border-subtle bg-surface px-3 py-2 shadow-lg">
+      <p className="mb-1 text-xs text-muted">{label}</p>
+      {payload.map((entry) => (
+        <p key={entry.name} className="text-sm text-white">
+          <span style={{ color: entry.color }}>{entry.name}: </span>
+          {entry.value}
+        </p>
+      ))}
+    </div>
+  );
+}
 
 export default function AnalyticsPage() {
   const [days, setDays] = useState<Days>(30);
@@ -101,6 +128,8 @@ export default function AnalyticsPage() {
     });
   }, [campaigns, campaignAnalytics, sortKey, sortAsc]);
 
+  const hasChartData = series.some((d) => d.sends > 0 || d.opens > 0);
+
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
       setSortAsc((v) => !v);
@@ -119,7 +148,7 @@ export default function AnalyticsPage() {
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value) as Days)}
-            className="rounded-lg border border-card-border bg-card px-4 py-2 text-sm text-white"
+            className="rounded-lg border border-border-subtle bg-surface px-4 py-2 text-sm text-white"
           >
             <option value={7}>Last 7 days</option>
             <option value={30}>Last 30 days</option>
@@ -129,86 +158,110 @@ export default function AnalyticsPage() {
       />
 
       {loading ? (
-        <p className="text-sm text-muted">Loading analytics...</p>
+        <div className="space-y-6">
+          <Skeleton className="h-72 w-full rounded-xl" />
+          <TableSkeleton rows={5} />
+        </div>
       ) : error ? (
         <p className="text-sm text-danger">{error}</p>
       ) : (
         <>
           <Card>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-              Sends & opens
-            </h2>
-            <div className="mt-4 h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={series}>
-                  <CartesianGrid stroke="#353849" strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    stroke="#6B7280"
-                    tick={{ fill: "#6B7280", fontSize: 12 }}
-                  />
-                  <YAxis
-                    stroke="#6B7280"
-                    tick={{ fill: "#6B7280", fontSize: 12 }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "#252836",
-                      border: "1px solid #353849",
-                      borderRadius: 8,
-                    }}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="sends"
-                    stroke="#7C3AED"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Sends"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="opens"
-                    stroke="#10B981"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Opens"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <SectionHeading>Sends & opens</SectionHeading>
+            {!hasChartData ? (
+              <EmptyState
+                icon={BarChart3}
+                title="No analytics data yet"
+                description="Send your first campaign emails to see performance trends here."
+                className="py-12"
+              />
+            ) : (
+              <div className="mt-4 h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={series}>
+                    <defs>
+                      <linearGradient id="sendsGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#7C3AED" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#7C3AED" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="opensGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10B981" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#1E2235" strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="date"
+                      stroke="#1E2235"
+                      tick={{ fill: "#6B7280", fontSize: 11 }}
+                      tickFormatter={(v) => v.slice(5)}
+                    />
+                    <YAxis
+                      stroke="#1E2235"
+                      tick={{ fill: "#6B7280", fontSize: 11 }}
+                    />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="sends"
+                      stroke="#7C3AED"
+                      strokeWidth={2}
+                      fill="url(#sendsGrad)"
+                      name="Sends"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="opens"
+                      stroke="#10B981"
+                      strokeWidth={2}
+                      dot={false}
+                      name="Opens"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </Card>
 
-          <Card className="mt-6">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-              Campaign performance
-            </h2>
-            <div className="mt-4 overflow-x-auto">
+          <Card className="mt-6 !p-0 overflow-hidden">
+            <div className="border-b border-border-subtle px-6 py-4">
+              <SectionHeading>Campaign performance</SectionHeading>
+            </div>
+            <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-card-border text-left text-muted">
-                    <th className="pb-3 pr-4">
-                      <button type="button" onClick={() => toggleSort("name")}>
+                  <tr className="border-b border-border-subtle text-left">
+                    <th className="px-4 py-3">
+                      <button
+                        type="button"
+                        className="text-table-header uppercase text-muted hover:text-white"
+                        onClick={() => toggleSort("name")}
+                      >
                         Campaign
                       </button>
                     </th>
-                    <th className="pb-3 pr-4">
-                      <button type="button" onClick={() => toggleSort("sent")}>
+                    <th className="px-4 py-3">
+                      <button
+                        type="button"
+                        className="text-table-header uppercase text-muted hover:text-white"
+                        onClick={() => toggleSort("sent")}
+                      >
                         Sent
                       </button>
                     </th>
-                    <th className="pb-3 pr-4">
+                    <th className="px-4 py-3">
                       <button
                         type="button"
+                        className="text-table-header uppercase text-muted hover:text-white"
                         onClick={() => toggleSort("open_rate")}
                       >
                         Open rate
                       </button>
                     </th>
-                    <th className="pb-3">
+                    <th className="px-4 py-3">
                       <button
                         type="button"
+                        className="text-table-header uppercase text-muted hover:text-white"
                         onClick={() => toggleSort("reply_rate")}
                       >
                         Reply rate
@@ -216,19 +269,22 @@ export default function AnalyticsPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-card-border">
+                <tbody>
                   {sortedCampaigns.map((campaign) => {
                     const stats = campaignAnalytics[campaign.id];
                     return (
-                      <tr key={campaign.id}>
-                        <td className="py-3 pr-4 text-white">{campaign.name}</td>
-                        <td className="py-3 pr-4 text-muted">
+                      <tr
+                        key={campaign.id}
+                        className="border-b border-border-subtle bg-surface hover:bg-row-hover"
+                      >
+                        <td className="px-4 py-3 text-white">{campaign.name}</td>
+                        <td className="px-4 py-3 text-body">
                           {stats?.sent ?? 0}
                         </td>
-                        <td className="py-3 pr-4 text-muted">
+                        <td className="px-4 py-3 text-body">
                           {stats ? formatRate(stats.open_rate) : "—"}
                         </td>
-                        <td className="py-3 text-muted">
+                        <td className="px-4 py-3 text-body">
                           {stats ? formatRate(stats.reply_rate) : "—"}
                         </td>
                       </tr>
@@ -239,50 +295,63 @@ export default function AnalyticsPage() {
             </div>
           </Card>
 
-          <Card className="mt-6">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-              Inbox performance
-            </h2>
-            <div className="mt-4 overflow-x-auto">
+          <Card className="mt-6 !p-0 overflow-hidden">
+            <div className="border-b border-border-subtle px-6 py-4">
+              <SectionHeading>Inbox performance</SectionHeading>
+            </div>
+            <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-card-border text-left text-muted">
-                    <th className="pb-3 pr-4 font-medium">Inbox</th>
-                    <th className="pb-3 pr-4 font-medium">Status</th>
-                    <th className="pb-3 pr-4 font-medium">Sent today</th>
-                    <th className="pb-3 pr-4 font-medium">Sent week</th>
-                    <th className="pb-3 font-medium">Bounce (7d)</th>
+                  <tr className="border-b border-border-subtle text-left">
+                    <th className="px-4 py-3 text-table-header uppercase text-muted">
+                      Inbox
+                    </th>
+                    <th className="px-4 py-3 text-table-header uppercase text-muted">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-table-header uppercase text-muted">
+                      Sent today
+                    </th>
+                    <th className="px-4 py-3 text-table-header uppercase text-muted">
+                      Sent week
+                    </th>
+                    <th className="px-4 py-3 text-table-header uppercase text-muted">
+                      Bounce (7d)
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-card-border">
+                <tbody>
                   {inboxes.map((inbox) => {
-                    const highlight =
-                      inbox.bounce_rate_7d > 10 || inbox.status === "paused";
+                    const bounceWarn = inbox.bounce_rate_7d > 5;
+                    const paused = inbox.status === "paused";
+
                     return (
                       <tr
                         key={inbox.inbox_id}
                         className={cn(
-                          highlight && "bg-danger/5"
+                          "border-b border-border-subtle bg-surface",
+                          bounceWarn && "bg-warning/5",
+                          paused && "bg-danger/5"
                         )}
                       >
-                        <td className="py-3 pr-4 text-white">
+                        <td className="px-4 py-3 text-white">
                           {inbox.inbox_email}
                         </td>
-                        <td className="py-3 pr-4">
+                        <td className="px-4 py-3">
                           <StatusBadge status={inbox.status} />
                         </td>
-                        <td className="py-3 pr-4 text-muted">
+                        <td className="px-4 py-3 text-body">
                           {inbox.sent_today}
                         </td>
-                        <td className="py-3 pr-4 text-muted">
+                        <td className="px-4 py-3 text-body">
                           {inbox.sent_week ?? 0}
                         </td>
                         <td
                           className={cn(
-                            "py-3",
-                            inbox.bounce_rate_7d > 10
-                              ? "text-danger"
-                              : "text-muted"
+                            "px-4 py-3",
+                            inbox.bounce_rate_7d > 5
+                              ? "text-warning"
+                              : "text-body"
                           )}
                         >
                           {formatRate(inbox.bounce_rate_7d)}

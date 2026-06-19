@@ -1,40 +1,70 @@
 import { cn } from "@/lib/utils";
 
-type StatusVariant =
-  | "active"
-  | "draft"
-  | "paused"
-  | "completed"
-  | "sent"
-  | "bounced"
-  | "failed"
-  | "disconnected"
-  | "pending"
-  | "in_progress"
-  | "replied"
-  | "unsubscribed"
-  | "default";
-
-const VARIANT_STYLES: Record<StatusVariant, string> = {
-  active: "bg-success/10 text-success",
-  sent: "bg-success/10 text-success",
-  replied: "bg-info/10 text-info",
-  draft: "bg-muted/10 text-muted",
-  paused: "bg-warning/10 text-warning",
-  pending: "bg-muted/10 text-muted",
-  in_progress: "bg-info/10 text-info",
-  completed: "bg-success/10 text-success",
-  bounced: "bg-danger/10 text-danger",
-  failed: "bg-danger/10 text-danger",
-  disconnected: "bg-muted/10 text-muted",
-  unsubscribed: "bg-muted/10 text-muted",
-  default: "bg-muted/10 text-muted",
+const STATUS_STYLES: Record<
+  string,
+  { bg: string; text: string; label: string }
+> = {
+  active: {
+    bg: "bg-success/15",
+    text: "text-success",
+    label: "Active",
+  },
+  sent: {
+    bg: "bg-success/15",
+    text: "text-success",
+    label: "Sent",
+  },
+  draft: {
+    bg: "bg-info/15",
+    text: "text-info",
+    label: "Draft",
+  },
+  paused: {
+    bg: "bg-warning/15",
+    text: "text-warning",
+    label: "Paused",
+  },
+  completed: {
+    bg: "bg-muted/15",
+    text: "text-muted",
+    label: "Completed",
+  },
+  bounced: {
+    bg: "bg-danger/15",
+    text: "text-danger",
+    label: "Bounced",
+  },
+  failed: {
+    bg: "bg-danger/15",
+    text: "text-danger",
+    label: "Failed",
+  },
+  unsubscribed: {
+    bg: "bg-muted/15",
+    text: "text-muted",
+    label: "Unsubscribed",
+  },
+  replied: {
+    bg: "bg-info/15",
+    text: "text-info",
+    label: "Replied",
+  },
+  opened: {
+    bg: "bg-warning/15",
+    text: "text-warning",
+    label: "Opened",
+  },
+  pending: {
+    bg: "bg-info/15",
+    text: "text-info",
+    label: "Pending",
+  },
+  disconnected: {
+    bg: "bg-muted/15",
+    text: "text-muted",
+    label: "Disconnected",
+  },
 };
-
-function normalizeStatus(status: string): StatusVariant {
-  const key = status.toLowerCase().replace(/\s+/g, "_") as StatusVariant;
-  return key in VARIANT_STYLES ? key : "default";
-}
 
 interface StatusBadgeProps {
   status: string;
@@ -42,16 +72,23 @@ interface StatusBadgeProps {
 }
 
 export default function StatusBadge({ status, className }: StatusBadgeProps) {
-  const variant = normalizeStatus(status);
+  const key = status.toLowerCase();
+  const style = STATUS_STYLES[key] ?? {
+    bg: "bg-muted/15",
+    text: "text-muted",
+    label: status,
+  };
+
   return (
     <span
       className={cn(
-        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
-        VARIANT_STYLES[variant],
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
+        style.bg,
+        style.text,
         className
       )}
     >
-      {status.replace(/_/g, " ")}
+      {style.label}
     </span>
   );
 }
