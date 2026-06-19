@@ -408,6 +408,52 @@ export async function getCampaignSteps(
   return (data ?? []) as CampaignStep[];
 }
 
+export async function createPendingSendLog(entry: {
+  campaignId: string;
+  contactId: string;
+  inboxId: string;
+  stepOrder: number;
+}): Promise<string> {
+  const { data, error } = await supabase
+    .from("send_log")
+    .insert({
+      campaign_id: entry.campaignId,
+      contact_id: entry.contactId,
+      inbox_id: entry.inboxId,
+      step_order: entry.stepOrder,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    logger.error("Failed to create pending send log", error);
+    throw new Error("Send log failed");
+  }
+
+  return data.id as string;
+}
+
+export async function finalizeSendLog(
+  sendLogId: string,
+  status: "sent" | "failed" | "bounced",
+  errorMessage?: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("send_log")
+    .update({
+      status,
+      error_message: errorMessage ?? null,
+      sent_at: new Date().toISOString(),
+    })
+    .eq("id", sendLogId);
+
+  if (error) {
+    logger.error("Failed to finalize send log", error);
+    throw new Error("Send log update failed");
+  }
+}
+
 export async function recordSendLog(entry: {
   campaignId: string;
   contactId: string;

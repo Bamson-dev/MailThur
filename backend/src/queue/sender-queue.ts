@@ -1,7 +1,8 @@
 import {
   fetchEligibleContacts,
   getCampaignSteps,
-  recordSendLog,
+  createPendingSendLog,
+  finalizeSendLog,
   advanceContactAfterSend,
   updateContactStatus,
   isCampaignActive,
@@ -20,6 +21,7 @@ import {
   InboxRotationState,
 } from "../utils/inbox-rotation";
 import { logger } from "../utils/logger";
+import { appendTrackingPixel } from "../utils/tracking";
 
 const rotationByUser = new Map<string, InboxRotationState>();
 
@@ -55,7 +57,8 @@ async function sendEmailWithRetry(
   },
   toEmail: string,
   subject: string,
-  body: string
+  body: string,
+  contentType: "text/plain" | "text/html" = "text/plain"
 ): Promise<void> {
   let accessToken = await ensureValidAccessToken(inbox);
 
@@ -66,6 +69,7 @@ async function sendEmailWithRetry(
       toEmail,
       subject,
       body,
+      contentType,
     });
     return;
   } catch (error) {
@@ -85,6 +89,7 @@ async function sendEmailWithRetry(
     toEmail,
     subject,
     body,
+    contentType,
   });
 }
 
@@ -145,18 +150,29 @@ export async function processSendQueue(): Promise<{
     }
 
     const subject = personalizeText(step.subject, contact);
-    const body = personalizeText(step.body, contact);
+    const plainBody = personalizeText(step.body, contact);
+
+    let sendLogId: string | null = null;
 
     try {
-      await sendEmailWithRetry(inbox, contact.email, subject, body);
-
-      await recordSendLog({
+      sendLogId = await createPendingSendLog({
         campaignId: contact.campaign_id,
         contactId: contact.id,
         inboxId: inbox.id,
         stepOrder: contact.current_step,
-        status: "sent",
       });
+
+      const htmlBody = appendTrackingPixel(plainBody, sendLogId);
+
+      await sendEmailWithRetry(
+        inbox,
+        contact.email,
+        subject,
+        htmlBody,
+        "text/html"
+      );
+
+      await finalizeSendLog(sendLogId, "sent");
 
       recordInboxSend(inbox.id, rotation);
 
@@ -176,14 +192,13 @@ export async function processSendQueue(): Promise<{
 
       const hardBounce = isHardBounceError(message);
 
-      await recordSendLog({
-        campaignId: contact.campaign_id,
-        contactId: contact.id,
-        inboxId: inbox.id,
-        stepOrder: contact.current_step,
-        status: hardBounce ? "bounced" : "failed",
-        errorMessage: message.slice(0, 500),
-      });
+      if (sendLogId) {
+        await finalizeSendLog(
+          sendLogId,
+          hardBounce ? "bounced" : "failed",
+          message.slice(0, 500)
+        );
+      }
 
       if (hardBounce) {
         await updateContactStatus(contact.id, "bounced");

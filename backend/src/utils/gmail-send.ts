@@ -10,13 +10,15 @@ function buildMimeMessage(params: {
   from: string;
   subject: string;
   body: string;
+  contentType?: "text/plain" | "text/html";
 }): string {
+  const contentType = params.contentType ?? "text/plain";
   const lines = [
     `From: ${params.from}`,
     `To: ${params.to}`,
     `Subject: ${params.subject}`,
     "MIME-Version: 1.0",
-    "Content-Type: text/plain; charset=utf-8",
+    `Content-Type: ${contentType}; charset=utf-8`,
     "",
     params.body,
   ];
@@ -30,12 +32,14 @@ export async function sendGmailMessage(params: {
   toEmail: string;
   subject: string;
   body: string;
+  contentType?: "text/plain" | "text/html";
 }): Promise<void> {
   const raw = buildMimeMessage({
     to: params.toEmail,
     from: params.fromEmail,
     subject: params.subject,
     body: params.body,
+    contentType: params.contentType,
   });
 
   const response = await fetch(

@@ -10,6 +10,9 @@ import exampleRoutes from "./api/example.routes";
 import waitlistRoutes from "./api/waitlist.routes";
 import authRouter from "./api/auth-router";
 import campaignsRouter from "./api/campaigns-router";
+import analyticsRouter from "./api/analytics-router";
+import trackRouter from "./api/track-router";
+import webhooksRouter from "./api/webhooks-router";
 import { logger } from "./utils/logger";
 import { env } from "./config/env";
 import { startQueueSchedulers } from "./queue";
@@ -69,7 +72,10 @@ app.use(globalRateLimiter);
 // Routes
 app.use(healthRoutes);
 app.use(authRouter);
+app.use("/track", trackRouter);
+app.use("/webhooks", webhooksRouter);
 app.use("/api", campaignsRouter);
+app.use("/api", analyticsRouter);
 app.use("/api", exampleRoutes);
 app.use("/api", waitlistRoutes);
 
