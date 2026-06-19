@@ -79,3 +79,29 @@ export async function disconnectInbox(inboxId: string): Promise<void> {
     }),
   });
 }
+
+export async function resumeInbox(inboxId: string): Promise<void> {
+  if (!apiUrl) {
+    throw new Error("API URL is not configured");
+  }
+
+  await apiFetch(`${apiUrl}/api/inboxes/${inboxId}/resume`, {
+    ...fetchOptions({
+      method: "POST",
+      userMessage: "Unable to resume inbox. Please try again.",
+    }),
+  });
+}
+
+export async function disconnectAllInboxes(): Promise<void> {
+  if (!apiUrl) {
+    throw new Error("API URL is not configured");
+  }
+
+  await apiFetch(`${apiUrl}/api/inboxes`, {
+    ...fetchOptions({
+      method: "DELETE",
+      userMessage: "Unable to disconnect inboxes. Please try again.",
+    }),
+  });
+}

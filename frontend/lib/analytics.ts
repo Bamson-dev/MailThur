@@ -18,9 +18,17 @@ export interface InboxAnalytics {
   inbox_email: string;
   sent_today: number;
   sent_week?: number;
+  sent_month?: number;
   bounce_rate_7d: number;
   daily_send_cap: number;
   status: string;
+  created_at?: string;
+}
+
+export interface DailyAnalyticsPoint {
+  date: string;
+  sends: number;
+  opens: number;
 }
 
 export function formatRate(value: number): string {
@@ -62,8 +70,27 @@ export async function fetchInboxAnalytics(): Promise<InboxAnalytics[]> {
     inbox_email: inbox.inbox_email,
     sent_today: inbox.sent_today,
     sent_week: inbox.sent_week,
+    sent_month: inbox.sent_month,
     bounce_rate_7d: inbox.bounce_rate_7d,
     daily_send_cap: inbox.daily_send_cap,
     status: inbox.status,
+    created_at: inbox.created_at,
   }));
+}
+
+export async function fetchDailyAnalytics(
+  days: 7 | 30 | 90
+): Promise<DailyAnalyticsPoint[]> {
+  if (!apiUrl) {
+    throw new Error("API URL is not configured");
+  }
+
+  const response = await apiFetch<{ series: DailyAnalyticsPoint[] }>(
+    `${apiUrl}/api/analytics/daily?days=${days}`,
+    fetchOptions({
+      userMessage: "Unable to load analytics chart. Please try again.",
+    })
+  );
+
+  return response.series;
 }
