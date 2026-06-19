@@ -3,6 +3,7 @@ import BillingSection from "@/components/dashboard/BillingSection";
 import InboxConnect from "@/components/dashboard/InboxConnect";
 import InboxHealth from "@/components/dashboard/InboxHealth";
 import Campaigns from "@/components/dashboard/Campaigns";
+import ActivityFeed from "@/components/dashboard/ActivityFeed";
 
 export default function DashboardPage() {
   return (
@@ -16,6 +17,7 @@ export default function DashboardPage() {
         </Suspense>
         <InboxHealth />
         <BillingSection />
+        <ActivityFeed />
         <Campaigns />
       </div>
     </main>

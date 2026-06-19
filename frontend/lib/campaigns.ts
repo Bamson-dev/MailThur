@@ -38,13 +38,40 @@ export interface ImportResult {
   invalid: Array<{ row: number; reason: string }>;
 }
 
-export async function fetchCampaigns(): Promise<Campaign[]> {
+export interface CampaignContact {
+  id: string;
+  email: string;
+  first_name: string | null;
+  business_name: string | null;
+  current_step: number;
+  status: string;
+  next_send_at: string | null;
+  last_contacted_at: string | null;
+}
+
+export async function fetchCampaigns(filters?: {
+  status?: CampaignStatus;
+  search?: string;
+}): Promise<Campaign[]> {
   if (!apiUrl) {
     throw new Error("API URL is not configured");
   }
 
+  const params = new URLSearchParams();
+  if (filters?.status) {
+    params.set("status", filters.status);
+  }
+  if (filters?.search) {
+    params.set("search", filters.search);
+  }
+
+  const query = params.toString();
+  const url = query
+    ? `${apiUrl}/api/campaigns?${query}`
+    : `${apiUrl}/api/campaigns`;
+
   const response = await apiFetch<{ campaigns: Campaign[] }>(
-    `${apiUrl}/api/campaigns`,
+    url,
     fetchOptions({
       userMessage: "Unable to load campaigns. Please try again.",
     })
@@ -156,4 +183,21 @@ export async function pauseCampaign(id: string): Promise<void> {
       userMessage: "Unable to pause campaign. Please try again.",
     }),
   });
+}
+
+export async function fetchCampaignContacts(
+  id: string
+): Promise<CampaignContact[]> {
+  if (!apiUrl) {
+    throw new Error("API URL is not configured");
+  }
+
+  const response = await apiFetch<{ contacts: CampaignContact[] }>(
+    `${apiUrl}/api/campaigns/${id}/contacts`,
+    fetchOptions({
+      userMessage: "Unable to load contacts. Please try again.",
+    })
+  );
+
+  return response.contacts;
 }

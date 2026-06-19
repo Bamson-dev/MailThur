@@ -9,10 +9,12 @@ import {
 } from "@/lib/analytics";
 import {
   Campaign,
+  CampaignContact,
   CampaignStep,
   StepInput,
   createCampaign,
   fetchCampaign,
+  fetchCampaignContacts,
   fetchCampaigns,
   importCampaignCsv,
   launchCampaign,
@@ -47,6 +49,10 @@ export default function Campaigns() {
   const [errorMessage, setErrorMessage] = useState("");
   const [limitMessage, setLimitMessage] = useState("");
   const [importSummary, setImportSummary] = useState("");
+  const [statusFilter, setStatusFilter] = useState<Campaign["status"] | "">("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [contacts, setContacts] = useState<CampaignContact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
 
   const loadCampaignAnalytics = useCallback(async (campaignIds: string[]) => {
     if (campaignIds.length === 0) {
@@ -79,7 +85,10 @@ export default function Campaigns() {
     setLimitMessage("");
 
     try {
-      const data = await fetchCampaigns();
+      const data = await fetchCampaigns({
+        status: statusFilter || undefined,
+        search: searchQuery.trim() || undefined,
+      });
       setCampaigns(data);
       setErrorMessage("");
       await loadCampaignAnalytics(data.map((campaign) => campaign.id));
@@ -94,7 +103,7 @@ export default function Campaigns() {
     } finally {
       setLoading(false);
     }
-  }, [loadCampaignAnalytics]);
+  }, [loadCampaignAnalytics, searchQuery, statusFilter]);
 
   const loadCampaignDetail = useCallback(async (id: string) => {
     try {
@@ -114,6 +123,15 @@ export default function Campaigns() {
           : [emptyStep()]
       );
       setErrorMessage("");
+      setContactsLoading(true);
+      try {
+        const rows = await fetchCampaignContacts(id);
+        setContacts(rows);
+      } catch {
+        setContacts([]);
+      } finally {
+        setContactsLoading(false);
+      }
     } catch (error) {
       setErrorMessage(getUserErrorMessage(error));
     }
@@ -303,6 +321,35 @@ export default function Campaigns() {
         <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
           Your campaigns
         </h3>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search by campaign name"
+            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-900"
+          />
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(event.target.value as Campaign["status"] | "")
+            }
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-900"
+          >
+            <option value="">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="active">Active</option>
+            <option value="paused">Paused</option>
+            <option value="completed">Completed</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => loadCampaigns()}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Apply
+          </button>
+        </div>
         {loading ? (
           <p className="mt-4 text-sm text-gray-500">Loading...</p>
         ) : campaigns.length === 0 ? (
@@ -363,6 +410,46 @@ export default function Campaigns() {
 
       {selectedId ? (
         <div className="mt-10 space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Contacts
+            </h3>
+            {contactsLoading ? (
+              <p className="mt-4 text-sm text-gray-500">Loading contacts...</p>
+            ) : contacts.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-500">No contacts imported yet.</p>
+            ) : (
+              <div className="mt-4 overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-left text-gray-500">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Email</th>
+                      <th className="px-4 py-2 font-medium">Status</th>
+                      <th className="px-4 py-2 font-medium">Step</th>
+                      <th className="px-4 py-2 font-medium">Last contacted</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {contacts.map((contact) => (
+                      <tr key={contact.id}>
+                        <td className="px-4 py-2 text-gray-900">{contact.email}</td>
+                        <td className="px-4 py-2 text-gray-600">{contact.status}</td>
+                        <td className="px-4 py-2 text-gray-600">
+                          {contact.current_step + 1}
+                        </td>
+                        <td className="px-4 py-2 text-gray-600">
+                          {contact.last_contacted_at
+                            ? new Date(contact.last_contacted_at).toLocaleString()
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
               Sequence steps
