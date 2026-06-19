@@ -17,6 +17,8 @@ import billingRouter, {
 } from "./api/billing-router";
 import trackRouter from "./api/track-router";
 import webhooksRouter from "./api/webhooks-router";
+import unsubscribeRouter from "./api/unsubscribe-router";
+import activityRouter from "./api/activity-router";
 import { logger } from "./utils/logger";
 import { env } from "./config/env";
 import { startQueueSchedulers } from "./queue";
@@ -81,10 +83,12 @@ app.use(globalRateLimiter);
 app.use(healthRoutes);
 app.use(authRouter);
 app.use("/track", trackRouter);
+app.use("/unsubscribe", unsubscribeRouter);
 app.use("/webhooks", webhooksRouter);
 app.use("/api", campaignsRouter);
 app.use("/api", analyticsRouter);
 app.use("/api", billingRouter);
+app.use("/api", activityRouter);
 app.use("/api", exampleRoutes);
 app.use("/api", waitlistRoutes);
 

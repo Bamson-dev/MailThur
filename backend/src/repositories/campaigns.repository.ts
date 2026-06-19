@@ -68,13 +68,24 @@ export async function createCampaign(
 }
 
 export async function listCampaignsForUser(
-  userEmail: string
+  userEmail: string,
+  filters?: { status?: CampaignStatus; search?: string }
 ): Promise<CampaignListItem[]> {
-  const { data: campaigns, error } = await supabase
+  let query = supabase
     .from("campaigns")
     .select("id, user_email, name, status, created_at, updated_at")
     .eq("user_email", userEmail)
     .order("created_at", { ascending: false });
+
+  if (filters?.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  if (filters?.search) {
+    query = query.ilike("name", `%${filters.search}%`);
+  }
+
+  const { data: campaigns, error } = await query;
 
   if (error) {
     logger.error("Failed to list campaigns", error);
@@ -437,15 +448,23 @@ export async function createPendingSendLog(entry: {
 export async function finalizeSendLog(
   sendLogId: string,
   status: "sent" | "failed" | "bounced",
-  errorMessage?: string
+  errorMessage?: string,
+  gmailIds?: { threadId: string; messageId: string }
 ): Promise<void> {
+  const updates: Record<string, unknown> = {
+    status,
+    error_message: errorMessage ?? null,
+    sent_at: new Date().toISOString(),
+  };
+
+  if (gmailIds) {
+    updates.gmail_thread_id = gmailIds.threadId;
+    updates.gmail_message_id = gmailIds.messageId;
+  }
+
   const { error } = await supabase
     .from("send_log")
-    .update({
-      status,
-      error_message: errorMessage ?? null,
-      sent_at: new Date().toISOString(),
-    })
+    .update(updates)
     .eq("id", sendLogId);
 
   if (error) {
@@ -557,6 +576,7 @@ export interface CampaignContactRow {
   current_step: number;
   status: string;
   next_send_at: string | null;
+  last_contacted_at: string | null;
 }
 
 export async function getSendLogForCampaign(
@@ -607,5 +627,296 @@ export async function getContactsForCampaign(
     throw new Error("Contacts fetch failed");
   }
 
-  return (data ?? []) as CampaignContactRow[];
+  const contactIds = (data ?? []).map((c) => c.id);
+  const lastContactMap = new Map<string, string>();
+
+  if (contactIds.length > 0) {
+    const { data: logs } = await supabase
+      .from("send_log")
+      .select("contact_id, sent_at")
+      .in("contact_id", contactIds)
+      .eq("status", "sent")
+      .order("sent_at", { ascending: false });
+
+    for (const log of logs ?? []) {
+      if (!lastContactMap.has(log.contact_id)) {
+        lastContactMap.set(log.contact_id, log.sent_at as string);
+      }
+    }
+  }
+
+  return (data ?? []).map((row) => ({
+    ...(row as Omit<CampaignContactRow, "last_contacted_at">),
+    last_contacted_at: lastContactMap.get(row.id) ?? null,
+  }));
+}
+
+export async function unsubscribeBySendLogId(
+  sendLogId: string
+): Promise<{ found: boolean; updated: number }> {
+  const { data: logRow, error: logError } = await supabase
+    .from("send_log")
+    .select("id, contact_id")
+    .eq("id", sendLogId)
+    .maybeSingle();
+
+  if (logError || !logRow) {
+    return { found: false, updated: 0 };
+  }
+
+  const { data: contact, error: contactError } = await supabase
+    .from("campaign_contacts")
+    .select("id, email, campaign_id")
+    .eq("id", logRow.contact_id)
+    .maybeSingle();
+
+  if (contactError || !contact) {
+    return { found: false, updated: 0 };
+  }
+
+  const { data: campaign, error: campaignError } = await supabase
+    .from("campaigns")
+    .select("user_email")
+    .eq("id", contact.campaign_id)
+    .maybeSingle();
+
+  if (campaignError || !campaign) {
+    return { found: false, updated: 0 };
+  }
+
+  const userEmail = campaign.user_email as string;
+  const contactEmail = (contact.email as string).toLowerCase();
+
+  const { data: userCampaigns } = await supabase
+    .from("campaigns")
+    .select("id")
+    .eq("user_email", userEmail);
+
+  const campaignIds = (userCampaigns ?? []).map((c) => c.id);
+  if (campaignIds.length === 0) {
+    return { found: true, updated: 0 };
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("campaign_contacts")
+    .update({
+      status: "unsubscribed",
+      next_send_at: null,
+    })
+    .in("campaign_id", campaignIds)
+    .eq("email", contactEmail)
+    .in("status", ["pending", "in_progress"])
+    .select("id");
+
+  if (updateError) {
+    logger.error("Failed to unsubscribe contacts", updateError);
+    throw new Error("Unsubscribe failed");
+  }
+
+  return { found: true, updated: updated?.length ?? 0 };
+}
+
+export interface ActivityEvent {
+  send_log_id: string;
+  campaign_id: string;
+  campaign_name: string;
+  contact_email: string;
+  inbox_email: string;
+  status: string;
+  sent_at: string;
+  opened_at: string | null;
+}
+
+export async function getRecentActivityForUser(
+  userEmail: string,
+  limit: number
+): Promise<ActivityEvent[]> {
+  const { data: campaigns, error: campaignError } = await supabase
+    .from("campaigns")
+    .select("id, name")
+    .eq("user_email", userEmail);
+
+  if (campaignError) {
+    logger.error("Failed to fetch campaigns for activity", campaignError);
+    throw new Error("Activity fetch failed");
+  }
+
+  if (!campaigns?.length) {
+    return [];
+  }
+
+  const campaignIds = campaigns.map((c) => c.id);
+  const nameById = new Map(campaigns.map((c) => [c.id, c.name as string]));
+
+  const { data: logs, error: logError } = await supabase
+    .from("send_log")
+    .select(
+      "id, campaign_id, contact_id, inbox_id, status, sent_at, opened_at"
+    )
+    .in("campaign_id", campaignIds)
+    .in("status", ["sent", "failed", "bounced"])
+    .order("sent_at", { ascending: false })
+    .limit(limit);
+
+  if (logError) {
+    logger.error("Failed to fetch activity send logs", logError);
+    throw new Error("Activity fetch failed");
+  }
+
+  if (!logs?.length) {
+    return [];
+  }
+
+  const contactIds = [...new Set(logs.map((l) => l.contact_id))];
+  const inboxIds = [...new Set(logs.map((l) => l.inbox_id))];
+
+  const [{ data: contacts }, { data: inboxes }] = await Promise.all([
+    supabase
+      .from("campaign_contacts")
+      .select("id, email")
+      .in("id", contactIds),
+    supabase
+      .from("connected_inboxes")
+      .select("id, inbox_email")
+      .in("id", inboxIds),
+  ]);
+
+  const emailByContact = new Map(
+    (contacts ?? []).map((c) => [c.id, c.email as string])
+  );
+  const inboxById = new Map(
+    (inboxes ?? []).map((i) => [i.id, i.inbox_email as string])
+  );
+
+  return logs.map((log) => ({
+    send_log_id: log.id as string,
+    campaign_id: log.campaign_id as string,
+    campaign_name: nameById.get(log.campaign_id) ?? "Campaign",
+    contact_email: emailByContact.get(log.contact_id) ?? "Unknown",
+    inbox_email: inboxById.get(log.inbox_id) ?? "Unknown",
+    status: log.status as string,
+    sent_at: log.sent_at as string,
+    opened_at: (log.opened_at as string | null) ?? null,
+  }));
+}
+
+export interface SentLogAwaitingReply {
+  send_log_id: string;
+  gmail_thread_id: string;
+  contact_id: string;
+  contact_email: string;
+  inbox_id: string;
+  inbox_email: string;
+  access_token: string;
+  refresh_token: string;
+  token_expires_at: string;
+}
+
+export async function fetchSentLogsAwaitingReply(
+  since: Date
+): Promise<SentLogAwaitingReply[]> {
+  const { data: logs, error } = await supabase
+    .from("send_log")
+    .select("id, gmail_thread_id, contact_id, inbox_id")
+    .eq("status", "sent")
+    .is("replied_at", null)
+    .not("gmail_thread_id", "is", null)
+    .gte("sent_at", since.toISOString());
+
+  if (error) {
+    logger.error("Failed to fetch logs awaiting reply", error);
+    throw new Error("Reply poll fetch failed");
+  }
+
+  if (!logs?.length) {
+    return [];
+  }
+
+  const contactIds = [...new Set(logs.map((l) => l.contact_id))];
+  const inboxIds = [...new Set(logs.map((l) => l.inbox_id))];
+
+  const [{ data: contacts }, { data: inboxes }] = await Promise.all([
+    supabase.from("campaign_contacts").select("id, email").in("id", contactIds),
+    supabase
+      .from("connected_inboxes")
+      .select(
+        "id, inbox_email, access_token, refresh_token, token_expires_at, status"
+      )
+      .in("id", inboxIds)
+      .eq("status", "active"),
+  ]);
+
+  const contactMap = new Map(
+    (contacts ?? []).map((c) => [c.id, c.email as string])
+  );
+  const inboxMap = new Map((inboxes ?? []).map((i) => [i.id, i]));
+
+  const results: SentLogAwaitingReply[] = [];
+
+  for (const log of logs) {
+    const inbox = inboxMap.get(log.inbox_id);
+    const contactEmail = contactMap.get(log.contact_id);
+    if (!inbox || !contactEmail || !log.gmail_thread_id) {
+      continue;
+    }
+
+    results.push({
+      send_log_id: log.id as string,
+      gmail_thread_id: log.gmail_thread_id as string,
+      contact_id: log.contact_id as string,
+      contact_email: contactEmail,
+      inbox_id: log.inbox_id as string,
+      inbox_email: inbox.inbox_email as string,
+      access_token: inbox.access_token as string,
+      refresh_token: inbox.refresh_token as string,
+      token_expires_at: inbox.token_expires_at as string,
+    });
+  }
+
+  return results;
+}
+
+export async function markSendLogReplied(
+  sendLogId: string,
+  contactId: string
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  const { error: logError } = await supabase
+    .from("send_log")
+    .update({ replied_at: now })
+    .eq("id", sendLogId)
+    .is("replied_at", null);
+
+  if (logError) {
+    logger.error("Failed to mark send log replied", logError);
+    throw new Error("Reply update failed");
+  }
+
+  const { error: contactError } = await supabase
+    .from("campaign_contacts")
+    .update({ status: "replied", next_send_at: null })
+    .eq("id", contactId);
+
+  if (contactError) {
+    logger.error("Failed to mark contact replied", contactError);
+    throw new Error("Contact reply update failed");
+  }
+}
+
+export async function getSendLogById(
+  sendLogId: string
+): Promise<{ id: string; status: string } | null> {
+  const { data, error } = await supabase
+    .from("send_log")
+    .select("id, status")
+    .eq("id", sendLogId)
+    .maybeSingle();
+
+  if (error) {
+    logger.error("Failed to fetch send log by id", error);
+    throw new Error("Send log fetch failed");
+  }
+
+  return data as { id: string; status: string } | null;
 }
