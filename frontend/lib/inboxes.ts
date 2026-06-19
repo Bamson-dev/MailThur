@@ -1,4 +1,7 @@
 import { apiFetch } from "./api";
+import { fetchOptions, hasSession } from "./session";
+
+export { hasSession };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
@@ -18,30 +21,6 @@ interface InboxesResponse {
 interface SessionResponse {
   message: string;
   token: string;
-}
-
-function authHeaders(): HeadersInit {
-  const token =
-    typeof window !== "undefined"
-      ? sessionStorage.getItem("mailthur_session")
-      : null;
-
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-function fetchOptions(
-  extra: RequestInit & { userMessage?: string } = {}
-): RequestInit & { userMessage?: string } {
-  const { userMessage, ...rest } = extra;
-  return {
-    credentials: "include",
-    userMessage,
-    ...rest,
-    headers: {
-      ...authHeaders(),
-      ...rest.headers,
-    },
-  };
 }
 
 export async function establishSession(email: string): Promise<void> {
@@ -99,8 +78,4 @@ export async function disconnectInbox(inboxId: string): Promise<void> {
       userMessage: "Unable to disconnect inbox. Please try again.",
     }),
   });
-}
-
-export function hasSession(): boolean {
-  return !!sessionStorage.getItem("mailthur_session");
 }
