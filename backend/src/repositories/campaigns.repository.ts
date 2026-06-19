@@ -708,7 +708,7 @@ export async function unsubscribeBySendLogId(
     })
     .in("campaign_id", campaignIds)
     .eq("email", contactEmail)
-    .in("status", ["pending", "in_progress"])
+    .in("status", ["pending", "in_progress", "completed", "replied"])
     .select("id");
 
   if (updateError) {
