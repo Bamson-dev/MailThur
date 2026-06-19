@@ -3,26 +3,49 @@ import { z } from "zod";
 const DEFAULT_CORS_ORIGINS =
   "https://mailthur.com,https://staging.mailthur.com,http://localhost:3000";
 
+/** Coolify and other hosts often inject empty strings — treat as unset. */
+function emptyToUndefined(value: unknown): unknown {
+  if (typeof value === "string" && value.trim() === "") {
+    return undefined;
+  }
+  return value;
+}
+
 const envSchema = z.object({
-  PORT: z.coerce.number().int().positive().default(4000),
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  FRONTEND_URL: z.string().url(),
+  PORT: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().default(4000)
+  ),
+  HOST: z.preprocess(
+    emptyToUndefined,
+    z.string().default("0.0.0.0")
+  ),
+  NODE_ENV: z.preprocess(
+    emptyToUndefined,
+    z.enum(["development", "production", "test"]).default("development")
+  ),
+  FRONTEND_URL: z.preprocess(emptyToUndefined, z.string().url()),
   CORS_ALLOWED_ORIGINS: z
-    .string()
-    .min(1)
-    .default(DEFAULT_CORS_ORIGINS)
+    .preprocess(
+      emptyToUndefined,
+      z.string().min(1).default(DEFAULT_CORS_ORIGINS)
+    )
     .transform((value) =>
       value
         .split(",")
         .map((origin) => origin.trim())
         .filter(Boolean)
     ),
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_SERVICE_KEY: z.string().min(1),
-  GOOGLE_CLIENT_ID: z.string().min(1),
-  GOOGLE_CLIENT_SECRET: z.string().min(1),
-  GOOGLE_REDIRECT_URI: z.string().url(),
-  REDIS_URL: z.string().min(1),
+  SUPABASE_URL: z.preprocess(emptyToUndefined, z.string().url()),
+  SUPABASE_SERVICE_KEY: z.preprocess(emptyToUndefined, z.string().min(1)),
+  GOOGLE_CLIENT_ID: z.preprocess(emptyToUndefined, z.string().min(1)),
+  GOOGLE_CLIENT_SECRET: z.preprocess(emptyToUndefined, z.string().min(1)),
+  GOOGLE_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url()),
+  // Not used on main yet — optional so missing value does not block startup.
+  REDIS_URL: z.preprocess(
+    emptyToUndefined,
+    z.string().min(1).default("redis://localhost:6379")
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;
