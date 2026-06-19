@@ -221,7 +221,7 @@ export default function Campaigns() {
 
   const canLaunch =
     !!selectedId &&
-    (savedSteps.length > 0 || steps.some((s) => s.subject && s.body)) &&
+    savedSteps.length > 0 &&
     contactCount > 0 &&
     status !== "active";
 
