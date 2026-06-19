@@ -14,13 +14,15 @@ export interface ActivityEvent {
   opened_at: string | null;
 }
 
-export async function fetchRecentActivity(): Promise<ActivityEvent[]> {
+export async function fetchRecentActivity(
+  limit = 20
+): Promise<ActivityEvent[]> {
   if (!apiUrl) {
     throw new Error("API URL is not configured");
   }
 
   const response = await apiFetch<{ events: ActivityEvent[] }>(
-    `${apiUrl}/api/activity/recent`,
+    `${apiUrl}/api/activity/recent?limit=${limit}`,
     fetchOptions({
       userMessage: "Unable to load recent activity. Please try again.",
     })
