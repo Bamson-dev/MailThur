@@ -7,7 +7,23 @@ const config: Config = {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        sidebar: "#0F1117",
+        content: "#1A1D27",
+        card: "#252836",
+        accent: "#7C3AED",
+        success: "#10B981",
+        warning: "#F59E0B",
+        danger: "#EF4444",
+        info: "#3B82F6",
+        muted: "#6B7280",
+        "card-border": "#353849",
+      },
+      fontFamily: {
+        sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+      },
+    },
   },
   plugins: [],
 };
