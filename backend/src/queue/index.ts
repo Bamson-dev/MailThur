@@ -1,4 +1,5 @@
 import Bull from "bull";
+import Redis from "ioredis";
 import { env } from "../config/env";
 import { processSendQueue } from "./sender-queue";
 import { processDailyCapRamp } from "./cap-ramp-job";
@@ -8,6 +9,28 @@ const SEND_JOB_NAME = "process-sends";
 const CAP_RAMP_JOB_NAME = "daily-cap-ramp";
 
 let sendQueue: Bull.Queue | null = null;
+let schedulersStarted = false;
+
+async function isRedisAvailable(): Promise<boolean> {
+  const client = new Redis(env.REDIS_URL, {
+    maxRetriesPerRequest: 1,
+    connectTimeout: 3000,
+    lazyConnect: true,
+  });
+
+  try {
+    await client.connect();
+    await client.ping();
+    return true;
+  } catch (error) {
+    logger.warn("Redis unavailable — Bull schedulers disabled", {
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    return false;
+  } finally {
+    client.disconnect();
+  }
+}
 
 export function getSendQueue(): Bull.Queue {
   if (!sendQueue) {
@@ -39,6 +62,15 @@ export function getSendQueue(): Bull.Queue {
 }
 
 export async function startQueueSchedulers(): Promise<void> {
+  if (schedulersStarted) {
+    return;
+  }
+
+  const redisOk = await isRedisAvailable();
+  if (!redisOk) {
+    return;
+  }
+
   const queue = getSendQueue();
 
   await queue.add(
@@ -63,6 +95,7 @@ export async function startQueueSchedulers(): Promise<void> {
     }
   );
 
+  schedulersStarted = true;
   logger.info("Queue schedulers started");
 }
 
