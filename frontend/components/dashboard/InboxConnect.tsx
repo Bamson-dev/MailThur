@@ -2,7 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { getUserErrorMessage } from "@/lib/api";
+import { getUserErrorMessage, isLimitReachedError } from "@/lib/api";
+import { fetchBillingStatus } from "@/lib/billing";
 import {
   ConnectedInbox,
   disconnectInbox,
@@ -11,6 +12,7 @@ import {
   getConnectInboxUrl,
   hasSession,
 } from "@/lib/inboxes";
+import UpgradePrompt from "./UpgradePrompt";
 
 export default function InboxConnect() {
   const searchParams = useSearchParams();
@@ -20,9 +22,11 @@ export default function InboxConnect() {
   const [loading, setLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [limitMessage, setLimitMessage] = useState("");
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
   const connectedParam = searchParams.get("connected");
+  const limitParam = searchParams.get("limit");
 
   const loadInboxes = useCallback(async () => {
     if (!hasSession()) {
@@ -40,7 +44,11 @@ export default function InboxConnect() {
       setInboxes(data);
       setErrorMessage("");
     } catch (error) {
-      setErrorMessage(getUserErrorMessage(error));
+      if (isLimitReachedError(error)) {
+        setLimitMessage(error.message);
+      } else {
+        setErrorMessage(getUserErrorMessage(error));
+      }
       setInboxes([]);
     } finally {
       setLoading(false);
@@ -58,11 +66,17 @@ export default function InboxConnect() {
       loadInboxes();
     } else if (connectedParam === "error") {
       setActionMessage("");
-      setErrorMessage(
-        "Unable to connect inbox. Please try again or contact support."
-      );
+      if (limitParam === "reached") {
+        setLimitMessage(
+          "You have reached your inbox limit. Upgrade your plan to connect more inboxes."
+        );
+      } else {
+        setErrorMessage(
+          "Unable to connect inbox. Please try again or contact support."
+        );
+      }
     }
-  }, [connectedParam, loadInboxes]);
+  }, [connectedParam, limitParam, loadInboxes]);
 
   async function handleSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,10 +93,28 @@ export default function InboxConnect() {
     }
   }
 
-  function handleConnect() {
+  async function handleConnect() {
     if (!hasSession()) {
       setErrorMessage("Please sign in before connecting an inbox.");
       return;
+    }
+
+    setErrorMessage("");
+    setLimitMessage("");
+
+    try {
+      const billing = await fetchBillingStatus();
+      if (inboxes.length >= billing.max_inboxes) {
+        setLimitMessage(
+          `Your ${billing.plan} plan allows ${billing.max_inboxes} inbox(es). Upgrade to connect more.`
+        );
+        return;
+      }
+    } catch (error) {
+      if (isLimitReachedError(error)) {
+        setLimitMessage(error.message);
+        return;
+      }
     }
 
     window.location.href = getConnectInboxUrl();
@@ -98,7 +130,11 @@ export default function InboxConnect() {
       setActionMessage("Inbox disconnected.");
       await loadInboxes();
     } catch (error) {
-      setErrorMessage(getUserErrorMessage(error));
+      if (isLimitReachedError(error)) {
+        setLimitMessage(error.message);
+      } else {
+        setErrorMessage(getUserErrorMessage(error));
+      }
     } finally {
       setDisconnectingId(null);
     }
@@ -137,6 +173,15 @@ export default function InboxConnect() {
           Connect Gmail Inbox
         </button>
       )}
+
+      {limitMessage ? (
+        <div className="mt-4">
+          <UpgradePrompt
+            message={limitMessage}
+            onDismiss={() => setLimitMessage("")}
+          />
+        </div>
+      ) : null}
 
       {actionMessage ? (
         <p className="mt-4 text-sm text-green-700">{actionMessage}</p>

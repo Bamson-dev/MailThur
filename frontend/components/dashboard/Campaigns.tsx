@@ -1,7 +1,12 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { getUserErrorMessage } from "@/lib/api";
+import { getUserErrorMessage, isLimitReachedError } from "@/lib/api";
+import {
+  CampaignAnalytics,
+  fetchCampaignAnalytics,
+  formatRate,
+} from "@/lib/analytics";
 import {
   Campaign,
   CampaignStep,
@@ -15,6 +20,7 @@ import {
   saveCampaignSteps,
 } from "@/lib/campaigns";
 import { hasSession } from "@/lib/session";
+import UpgradePrompt from "./UpgradePrompt";
 
 const emptyStep = (): StepInput => ({
   subject: "",
@@ -24,6 +30,9 @@ const emptyStep = (): StepInput => ({
 
 export default function Campaigns() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [analyticsById, setAnalyticsById] = useState<
+    Record<string, CampaignAnalytics>
+  >({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [campaignName, setCampaignName] = useState("");
   const [steps, setSteps] = useState<StepInput[]>([emptyStep()]);
@@ -36,27 +45,56 @@ export default function Campaigns() {
   const [launching, setLaunching] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [limitMessage, setLimitMessage] = useState("");
   const [importSummary, setImportSummary] = useState("");
+
+  const loadCampaignAnalytics = useCallback(async (campaignIds: string[]) => {
+    if (campaignIds.length === 0) {
+      setAnalyticsById({});
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      campaignIds.map((id) => fetchCampaignAnalytics(id))
+    );
+
+    const next: Record<string, CampaignAnalytics> = {};
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        next[result.value.campaign_id] = result.value;
+      }
+    }
+    setAnalyticsById(next);
+  }, []);
 
   const loadCampaigns = useCallback(async () => {
     if (!hasSession()) {
       setCampaigns([]);
+      setAnalyticsById({});
       setLoading(false);
       return;
     }
 
     setLoading(true);
+    setLimitMessage("");
+
     try {
       const data = await fetchCampaigns();
       setCampaigns(data);
       setErrorMessage("");
+      await loadCampaignAnalytics(data.map((campaign) => campaign.id));
     } catch (error) {
-      setErrorMessage(getUserErrorMessage(error));
+      if (isLimitReachedError(error)) {
+        setLimitMessage(error.message);
+      } else {
+        setErrorMessage(getUserErrorMessage(error));
+      }
       setCampaigns([]);
+      setAnalyticsById({});
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadCampaignAnalytics]);
 
   const loadCampaignDetail = useCallback(async (id: string) => {
     try {
@@ -101,7 +139,11 @@ export default function Campaigns() {
       setActionMessage("Campaign created.");
       await loadCampaigns();
     } catch (error) {
-      setErrorMessage(getUserErrorMessage(error));
+      if (isLimitReachedError(error)) {
+        setLimitMessage(error.message);
+      } else {
+        setErrorMessage(getUserErrorMessage(error));
+      }
     } finally {
       setSaving(false);
     }
@@ -192,7 +234,11 @@ export default function Campaigns() {
       setActionMessage("Campaign launched.");
       await loadCampaigns();
     } catch (error) {
-      setErrorMessage(getUserErrorMessage(error));
+      if (isLimitReachedError(error)) {
+        setLimitMessage(error.message);
+      } else {
+        setErrorMessage(getUserErrorMessage(error));
+      }
     } finally {
       setLaunching(false);
     }
@@ -263,22 +309,33 @@ export default function Campaigns() {
           <p className="mt-4 text-sm text-gray-500">No campaigns yet.</p>
         ) : (
           <ul className="mt-4 divide-y divide-gray-200 rounded-lg border border-gray-200">
-            {campaigns.map((campaign) => (
-              <li key={campaign.id}>
-                <button
-                  type="button"
-                  onClick={() => loadCampaignDetail(campaign.id)}
-                  className="flex w-full items-center justify-between px-4 py-4 text-left hover:bg-gray-50"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">{campaign.name}</p>
-                    <p className="text-sm text-gray-500">
-                      {campaign.status} · {campaign.contact_count ?? 0} contacts
-                    </p>
-                  </div>
-                </button>
-              </li>
-            ))}
+            {campaigns.map((campaign) => {
+              const analytics = analyticsById[campaign.id];
+
+              return (
+                <li key={campaign.id}>
+                  <button
+                    type="button"
+                    onClick={() => loadCampaignDetail(campaign.id)}
+                    className="flex w-full items-center justify-between px-4 py-4 text-left hover:bg-gray-50"
+                  >
+                    <div>
+                      <p className="font-medium text-gray-900">{campaign.name}</p>
+                      <p className="text-sm text-gray-500">
+                        {campaign.status} · {campaign.contact_count ?? 0} contacts
+                      </p>
+                      {analytics ? (
+                        <p className="mt-1 text-sm text-gray-600">
+                          {analytics.sent} sent · open {formatRate(analytics.open_rate)} ·
+                          reply {formatRate(analytics.reply_rate)} · bounce{" "}
+                          {formatRate(analytics.bounce_rate)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -420,6 +477,15 @@ export default function Campaigns() {
               </button>
             ) : null}
           </div>
+        </div>
+      ) : null}
+
+      {limitMessage ? (
+        <div className="mt-6">
+          <UpgradePrompt
+            message={limitMessage}
+            onDismiss={() => setLimitMessage("")}
+          />
         </div>
       ) : null}
 
