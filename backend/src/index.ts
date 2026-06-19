@@ -73,8 +73,12 @@ app.use("/api", waitlistRoutes);
 // Global error handler — MUST be last
 app.use(errorHandler);
 
-app.listen(env.PORT, () => {
-  logger.info("Server started", { port: env.PORT, nodeEnv: env.NODE_ENV });
+app.listen(env.PORT, env.HOST, () => {
+  logger.info("Server started", {
+    host: env.HOST,
+    port: env.PORT,
+    nodeEnv: env.NODE_ENV,
+  });
 });
 
 export default app;

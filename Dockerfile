@@ -1,17 +1,16 @@
+# Coolify may build from the repo root — delegate to the backend service.
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Reproducible build: copy lockfiles first, then install with npm ci
-COPY package.json package-lock.json ./
+COPY backend/package.json backend/package-lock.json ./
 RUN npm ci
 
-COPY tsconfig.json ./
-COPY src ./src
+COPY backend/tsconfig.json ./
+COPY backend/src ./src
 
 RUN npm run build
 
-# Production image
 FROM node:20-alpine AS runner
 
 WORKDIR /app
@@ -19,7 +18,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 
-COPY package.json package-lock.json ./
+COPY backend/package.json backend/package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
