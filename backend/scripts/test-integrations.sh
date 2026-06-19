@@ -77,7 +77,7 @@ done
 SCID=$(curl -sf -X POST "$API_URL/api/campaigns" -H "Content-Type: application/json" -H "$AUTH" \
   -d '{"name":"Unsubscribe E2E"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['campaign']['id'])")
 curl -sf -X PUT "$API_URL/api/campaigns/$SCID/steps" -H "Content-Type: application/json" -H "$AUTH" \
-  -d '{"steps":[{"subject":"Unsub test","body":"Please ignore.","delay_days":0}]}' > /dev/null
+  -d '{"steps":[{"subject":"Unsub test","body":"Please ignore.","delay_days":0},{"subject":"Step 2","body":"Follow up","delay_days":1}]}' > /dev/null
 CSV=$(mktemp); printf 'email,first_name\n%s,Test\n' "$TEST_EMAIL" > "$CSV"
 curl -sf -X POST "$API_URL/api/campaigns/$SCID/contacts/csv" -H "$AUTH" -F "file=@$CSV;type=text/csv" > /dev/null
 rm -f "$CSV"
