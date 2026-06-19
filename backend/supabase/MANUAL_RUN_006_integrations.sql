@@ -1,4 +1,4 @@
--- MANUAL STEP: Run on staging Supabase if migration 006 not applied automatically
+-- MANUAL STEP: Run on staging Supabase if migration 006_integrations has not been applied.
 
 alter table send_log
   add column if not exists gmail_thread_id text,

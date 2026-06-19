@@ -1,15 +1,13 @@
-const PUBLIC_BACKEND_URL =
-  process.env.PUBLIC_BACKEND_URL ?? "https://staging-backend.mailthur.com";
+import { env } from "../config/env";
 
-const TRACKING_BASE_URL =
-  process.env.TRACKING_BASE_URL ?? PUBLIC_BACKEND_URL;
+const TRACKING_BASE_URL = env.TRACKING_BASE_URL ?? env.PUBLIC_BACKEND_URL;
 
 export function buildTrackingPixelUrl(sendLogId: string): string {
   return `${TRACKING_BASE_URL}/track/open/${sendLogId}`;
 }
 
 export function buildUnsubscribeUrl(sendLogId: string): string {
-  return `${PUBLIC_BACKEND_URL}/unsubscribe/${sendLogId}`;
+  return `${env.PUBLIC_BACKEND_URL}/unsubscribe/${sendLogId}`;
 }
 
 export function appendTrackingPixel(body: string, sendLogId: string): string {

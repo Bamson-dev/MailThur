@@ -566,6 +566,9 @@ export interface SendLogEntry {
   status: string;
   error_message: string | null;
   sent_at: string;
+  opened_at?: string | null;
+  replied_at?: string | null;
+  gmail_thread_id?: string | null;
 }
 
 export interface CampaignContactRow {
@@ -591,7 +594,7 @@ export async function getSendLogForCampaign(
   const { data, error } = await supabase
     .from("send_log")
     .select(
-      "id, campaign_id, contact_id, inbox_id, step_order, status, error_message, sent_at, opened_at, replied_at"
+      "id, campaign_id, contact_id, inbox_id, step_order, status, error_message, sent_at, opened_at, replied_at, gmail_thread_id"
     )
     .eq("campaign_id", campaignId)
     .order("sent_at", { ascending: false })

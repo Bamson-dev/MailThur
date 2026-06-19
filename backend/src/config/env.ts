@@ -64,6 +64,13 @@ const envSchema = z.object({
     emptyToUndefined,
     z.string().min(1).default("FLWPUBK_TEST-mailthur_dev_placeholder")
   ),
+  /** Public backend URL for unsubscribe links in emails (e.g. https://backend.mailthur.com) */
+  PUBLIC_BACKEND_URL: z.preprocess(
+    emptyToUndefined,
+    z.string().url().default("https://staging-backend.mailthur.com")
+  ),
+  /** Base URL for open-tracking pixel (defaults to PUBLIC_BACKEND_URL) */
+  TRACKING_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;

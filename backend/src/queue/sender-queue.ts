@@ -27,7 +27,7 @@ import {
   TRIAL_EMAIL_CAP,
 } from "../repositories/subscriptions.repository";
 import { logger } from "../utils/logger";
-import { appendTrackingPixel } from "../utils/tracking";
+import { appendTrackingPixel, appendPlainUnsubscribeLine } from "../utils/tracking";
 
 const rotationByUser = new Map<string, InboxRotationState>();
 
@@ -182,7 +182,8 @@ export async function processSendQueue(): Promise<{
         stepOrder: contact.current_step,
       });
 
-      const htmlBody = appendTrackingPixel(plainBody, sendLogId);
+      const plainBodyWithUnsubscribe = appendPlainUnsubscribeLine(plainBody, sendLogId);
+      const htmlBody = appendTrackingPixel(plainBodyWithUnsubscribe, sendLogId);
 
       const gmailResult = await sendEmailWithRetry(
         inbox,
