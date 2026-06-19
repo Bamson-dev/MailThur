@@ -252,7 +252,7 @@ export async function processHardBounce(sendLogId: string): Promise<{
 
   let inboxPaused = false;
 
-  if (bounceRate > 0.1 && bounceStats.total >= 10) {
+  if (bounceRate > 0.1) {
     const { error: pauseError } = await supabase
       .from("connected_inboxes")
       .update({
