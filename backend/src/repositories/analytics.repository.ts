@@ -22,7 +22,9 @@ export interface InboxAnalyticsItem {
   daily_send_cap: number;
   sent_today: number;
   sent_week: number;
+  sent_month: number;
   bounce_rate_7d: number;
+  created_at: string;
 }
 
 export async function getCampaignAnalytics(
@@ -95,6 +97,9 @@ export async function getInboxAnalytics(
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
 
+  const monthAgo = new Date();
+  monthAgo.setDate(monthAgo.getDate() - 30);
+
   const bounceSince = new Date();
   bounceSince.setDate(bounceSince.getDate() - 7);
 
@@ -104,6 +109,7 @@ export async function getInboxAnalytics(
     const [
       { count: sentToday, error: todayError },
       { count: sentWeek, error: weekError },
+      { count: sentMonth, error: monthError },
     ] = await Promise.all([
       supabase
         .from("send_log")
@@ -117,10 +123,16 @@ export async function getInboxAnalytics(
         .eq("inbox_id", inbox.id)
         .eq("status", "sent")
         .gte("sent_at", weekAgo.toISOString()),
+      supabase
+        .from("send_log")
+        .select("id", { count: "exact", head: true })
+        .eq("inbox_id", inbox.id)
+        .eq("status", "sent")
+        .gte("sent_at", monthAgo.toISOString()),
     ]);
 
-    if (todayError || weekError) {
-      logger.error("Failed to fetch inbox send counts", todayError ?? weekError);
+    if (todayError || weekError || monthError) {
+      logger.error("Failed to fetch inbox send counts", todayError ?? weekError ?? monthError);
       throw new Error("Inbox analytics fetch failed");
     }
 
@@ -137,7 +149,9 @@ export async function getInboxAnalytics(
       daily_send_cap: inbox.daily_send_cap,
       sent_today: sentToday ?? 0,
       sent_week: sentWeek ?? 0,
+      sent_month: sentMonth ?? 0,
       bounce_rate_7d: bounceRate,
+      created_at: inbox.created_at,
     });
   }
 

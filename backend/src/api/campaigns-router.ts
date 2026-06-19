@@ -12,6 +12,9 @@ import {
   importCampaignContacts,
   launchCampaign,
   pauseCampaign,
+  resumeCampaign,
+  deleteCampaignForUser,
+  deleteAllCampaignsForUser,
   getSendLogForCampaign,
   getContactsForCampaign,
 } from "../repositories/campaigns.repository";
@@ -373,6 +376,66 @@ router.post(
       }
 
       res.json({ message: "Campaign paused.", status: "paused" });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/campaigns/:id/resume",
+  requireAuth,
+  validate({ params: campaignParamsSchema }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const { id } = (req as ValidatedRequest<unknown, unknown, CampaignParams>)
+        .validatedParams;
+
+      const resumed = await resumeCampaign(userEmail, id);
+      if (!resumed) {
+        res.status(404).json({ error: "Campaign not found or not paused." });
+        return;
+      }
+
+      res.json({ message: "Campaign resumed.", status: "active" });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  "/campaigns/:id",
+  requireAuth,
+  validate({ params: campaignParamsSchema }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const { id } = (req as ValidatedRequest<unknown, unknown, CampaignParams>)
+        .validatedParams;
+
+      const deleted = await deleteCampaignForUser(userEmail, id);
+      if (!deleted) {
+        res.status(404).json({ error: "Campaign not found." });
+        return;
+      }
+
+      res.json({ message: "Campaign deleted." });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  "/campaigns",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const deleted = await deleteAllCampaignsForUser(userEmail);
+      res.json({ message: "All campaigns deleted.", deleted });
     } catch (error) {
       next(error);
     }

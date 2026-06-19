@@ -326,6 +326,107 @@ export async function pauseCampaign(
   return !!data;
 }
 
+export async function resumeCampaign(
+  userEmail: string,
+  campaignId: string
+): Promise<boolean> {
+  const campaign = await getCampaignForUser(userEmail, campaignId);
+  if (!campaign) {
+    return false;
+  }
+
+  if (campaign.status !== "paused") {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("campaigns")
+    .update({
+      status: "active",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", campaignId)
+    .eq("user_email", userEmail)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    logger.error("Failed to resume campaign", error);
+    throw new Error("Campaign resume failed");
+  }
+
+  return !!data;
+}
+
+export async function deleteCampaignForUser(
+  userEmail: string,
+  campaignId: string
+): Promise<boolean> {
+  const campaign = await getCampaignForUser(userEmail, campaignId);
+  if (!campaign) {
+    return false;
+  }
+
+  const { error: logError } = await supabase
+    .from("send_log")
+    .delete()
+    .eq("campaign_id", campaignId);
+
+  if (logError) {
+    logger.error("Failed to delete campaign send logs", logError);
+    throw new Error("Campaign delete failed");
+  }
+
+  const { error: contactError } = await supabase
+    .from("campaign_contacts")
+    .delete()
+    .eq("campaign_id", campaignId);
+
+  if (contactError) {
+    logger.error("Failed to delete campaign contacts", contactError);
+    throw new Error("Campaign delete failed");
+  }
+
+  const { error: stepError } = await supabase
+    .from("campaign_steps")
+    .delete()
+    .eq("campaign_id", campaignId);
+
+  if (stepError) {
+    logger.error("Failed to delete campaign steps", stepError);
+    throw new Error("Campaign delete failed");
+  }
+
+  const { data, error } = await supabase
+    .from("campaigns")
+    .delete()
+    .eq("id", campaignId)
+    .eq("user_email", userEmail)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    logger.error("Failed to delete campaign", error);
+    throw new Error("Campaign delete failed");
+  }
+
+  return !!data;
+}
+
+export async function deleteAllCampaignsForUser(
+  userEmail: string
+): Promise<number> {
+  const campaigns = await listCampaignsForUser(userEmail);
+  let deleted = 0;
+
+  for (const campaign of campaigns) {
+    const ok = await deleteCampaignForUser(userEmail, campaign.id);
+    if (ok) deleted += 1;
+  }
+
+  return deleted;
+}
+
 export interface EligibleContact {
   id: string;
   campaign_id: string;

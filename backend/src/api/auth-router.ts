@@ -23,6 +23,8 @@ import {
   upsertConnectedInbox,
   listInboxesForUser,
   disconnectInbox,
+  resumeInbox,
+  disconnectAllInboxesForUser,
   getActiveInboxesWithTokensForUser,
   updateInboxTokens,
   countConnectedInboxesForUser,
@@ -225,6 +227,43 @@ router.delete(
       }
 
       res.json({ message: "Inbox disconnected." });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/api/inboxes/:id/resume",
+  requireAuth,
+  validate({ params: inboxParamsSchema }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const { id } = (req as ValidatedRequest<unknown, unknown, InboxParams>)
+        .validatedParams;
+
+      const resumed = await resumeInbox(userEmail, id);
+      if (!resumed) {
+        res.status(404).json({ error: "Inbox not found." });
+        return;
+      }
+
+      res.json({ message: "Inbox resumed.", status: "active" });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  "/api/inboxes",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const count = await disconnectAllInboxesForUser(userEmail);
+      res.json({ message: "All inboxes disconnected.", count });
     } catch (error) {
       next(error);
     }

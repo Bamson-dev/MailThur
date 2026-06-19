@@ -290,3 +290,48 @@ export async function disconnectInbox(
 
   return !!data;
 }
+
+export async function resumeInbox(
+  userEmail: string,
+  inboxId: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("connected_inboxes")
+    .update({
+      status: "active",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", inboxId)
+    .eq("user_email", userEmail)
+    .neq("status", "disconnected")
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    logger.error("Failed to resume inbox", error);
+    throw new Error("Inbox resume failed");
+  }
+
+  return !!data;
+}
+
+export async function disconnectAllInboxesForUser(
+  userEmail: string
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("connected_inboxes")
+    .update({
+      status: "disconnected",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_email", userEmail)
+    .neq("status", "disconnected")
+    .select("id");
+
+  if (error) {
+    logger.error("Failed to disconnect all inboxes", error);
+    throw new Error("Inbox disconnect all failed");
+  }
+
+  return data?.length ?? 0;
+}

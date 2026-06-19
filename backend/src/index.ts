@@ -19,6 +19,8 @@ import trackRouter from "./api/track-router";
 import webhooksRouter from "./api/webhooks-router";
 import unsubscribeRouter from "./api/unsubscribe-router";
 import activityRouter from "./api/activity-router";
+import dashboardRouter from "./api/dashboard-router";
+import contactsRouter from "./api/contacts-router";
 import { logger } from "./utils/logger";
 import { env } from "./config/env";
 import { startQueueSchedulers } from "./queue";
@@ -89,6 +91,8 @@ app.use("/api", campaignsRouter);
 app.use("/api", analyticsRouter);
 app.use("/api", billingRouter);
 app.use("/api", activityRouter);
+app.use("/api", dashboardRouter);
+app.use("/api", contactsRouter);
 app.use("/api", exampleRoutes);
 app.use("/api", waitlistRoutes);
 
