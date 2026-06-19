@@ -19,6 +19,10 @@ import {
   parseContactsFromCsv,
   parseContactsFromJson,
 } from "../services/contact-import";
+import {
+  leadThurImportPayloadSchema,
+  mapLeadThurContacts,
+} from "../integrations/leadthur";
 import { triggerSendQueueNow } from "../queue";
 import { logger } from "../utils/logger";
 
@@ -52,10 +56,17 @@ const importContactsSchema = z.object({
   contacts: z.array(contactImportItemSchema).min(1).max(5000),
 });
 
+const listCampaignsQuerySchema = z.object({
+  status: z.enum(["draft", "active", "paused", "completed"]).optional(),
+  search: z.string().trim().max(200).optional(),
+});
+
 type CreateCampaignBody = z.infer<typeof createCampaignSchema>;
 type CampaignParams = z.infer<typeof campaignParamsSchema>;
 type ReplaceStepsBody = z.infer<typeof replaceStepsSchema>;
 type ImportContactsBody = z.infer<typeof importContactsSchema>;
+type ListCampaignsQuery = z.infer<typeof listCampaignsQuerySchema>;
+type LeadThurImportBody = z.infer<typeof leadThurImportPayloadSchema>;
 
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -94,10 +105,16 @@ router.post(
 router.get(
   "/campaigns",
   requireAuth,
+  validate({ query: listCampaignsQuerySchema }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { userEmail } = req as AuthenticatedRequest;
-      const campaigns = await listCampaignsForUser(userEmail);
+      const query = (req as ValidatedRequest<unknown, ListCampaignsQuery>)
+        .validatedQuery;
+      const campaigns = await listCampaignsForUser(userEmail, {
+        status: query.status,
+        search: query.search,
+      });
       res.json({ campaigns });
     } catch (error) {
       next(error);
@@ -256,6 +273,52 @@ router.post(
         imported: result.imported,
         skipped: parsed.invalid.length,
         invalid: parsed.invalid,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/campaigns/:id/contacts/leadthur",
+  requireAuth,
+  uploadLimiter,
+  validate({ params: campaignParamsSchema, body: leadThurImportPayloadSchema }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const { id } = (req as ValidatedRequest<LeadThurImportBody, unknown, CampaignParams>)
+        .validatedParams;
+      const { contacts } = (req as ValidatedRequest<LeadThurImportBody>).validatedBody;
+
+      const campaign = await getCampaignForUser(userEmail, id);
+      if (!campaign) {
+        res.status(404).json({ error: "Campaign not found." });
+        return;
+      }
+
+      const parsed = mapLeadThurContacts(contacts);
+
+      if (parsed.valid.length === 0) {
+        res.json({
+          imported: 0,
+          skipped: parsed.skipped.length,
+          skipped_details: parsed.skipped,
+        });
+        return;
+      }
+
+      const result = await importCampaignContacts(userEmail, id, parsed.valid);
+      if (!result) {
+        res.status(404).json({ error: "Campaign not found." });
+        return;
+      }
+
+      res.json({
+        imported: result.imported,
+        skipped: parsed.skipped.length,
+        skipped_details: parsed.skipped,
       });
     } catch (error) {
       next(error);
