@@ -2,8 +2,7 @@ function base64UrlEncode(value: string): string {
   return Buffer.from(value, "utf-8")
     .toString("base64")
     .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+    .replace(/\//g, "_");
 }
 
 function buildMimeMessage(params: {

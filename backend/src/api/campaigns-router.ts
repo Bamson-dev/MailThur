@@ -12,6 +12,8 @@ import {
   importCampaignContacts,
   launchCampaign,
   pauseCampaign,
+  getSendLogForCampaign,
+  getContactsForCampaign,
 } from "../repositories/campaigns.repository";
 import {
   parseContactsFromCsv,
@@ -323,6 +325,52 @@ router.post(
       res.json({ message: "Queue processed.", result });
     } catch (error) {
       logger.error("Manual queue process failed", error);
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/campaigns/:id/send-log",
+  requireAuth,
+  validate({ params: campaignParamsSchema }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const { id } = (req as ValidatedRequest<unknown, unknown, CampaignParams>)
+        .validatedParams;
+
+      const entries = await getSendLogForCampaign(userEmail, id);
+      if (!entries) {
+        res.status(404).json({ error: "Campaign not found." });
+        return;
+      }
+
+      res.json({ send_log: entries });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/campaigns/:id/contacts",
+  requireAuth,
+  validate({ params: campaignParamsSchema }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const { id } = (req as ValidatedRequest<unknown, unknown, CampaignParams>)
+        .validatedParams;
+
+      const contacts = await getContactsForCampaign(userEmail, id);
+      if (!contacts) {
+        res.status(404).json({ error: "Campaign not found." });
+        return;
+      }
+
+      res.json({ contacts });
+    } catch (error) {
       next(error);
     }
   }

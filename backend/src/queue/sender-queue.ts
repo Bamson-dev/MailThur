@@ -41,6 +41,49 @@ async function ensureValidAccessToken(inbox: {
   return refreshed.accessToken;
 }
 
+async function sendEmailWithRetry(
+  inbox: {
+    id: string;
+    inbox_email: string;
+    access_token: string;
+    refresh_token: string;
+    token_expires_at: string;
+  },
+  toEmail: string,
+  subject: string,
+  body: string
+): Promise<void> {
+  let accessToken = await ensureValidAccessToken(inbox);
+
+  try {
+    await sendGmailMessage({
+      accessToken,
+      fromEmail: inbox.inbox_email,
+      toEmail,
+      subject,
+      body,
+    });
+    return;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!message.includes("401")) {
+      throw error;
+    }
+  }
+
+  const refreshed = await refreshGoogleAccessToken(inbox.refresh_token);
+  await updateInboxTokens(inbox.id, refreshed.accessToken, refreshed.expiresAt);
+  accessToken = refreshed.accessToken;
+
+  await sendGmailMessage({
+    accessToken,
+    fromEmail: inbox.inbox_email,
+    toEmail,
+    subject,
+    body,
+  });
+}
+
 export async function processSendQueue(): Promise<{
   processed: number;
   sent: number;
@@ -101,14 +144,7 @@ export async function processSendQueue(): Promise<{
     const body = personalizeText(step.body, contact);
 
     try {
-      const accessToken = await ensureValidAccessToken(inbox);
-      await sendGmailMessage({
-        accessToken,
-        fromEmail: inbox.inbox_email,
-        toEmail: contact.email,
-        subject,
-        body,
-      });
+      await sendEmailWithRetry(inbox, contact.email, subject, body);
 
       await recordSendLog({
         campaignId: contact.campaign_id,

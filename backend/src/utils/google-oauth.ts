@@ -1,4 +1,5 @@
 import { env } from "../config/env";
+import { logger } from "./logger";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -98,7 +99,12 @@ export async function refreshGoogleAccessToken(
   });
 
   if (!response.ok) {
-    throw new Error("Google token refresh failed");
+    const errorBody = await response.text();
+    logger.error("Google token refresh failed", undefined, {
+      status: response.status,
+      body: errorBody.slice(0, 200),
+    });
+    throw new Error(`Google token refresh failed: ${response.status}`);
   }
 
   const data = (await response.json()) as GoogleRefreshTokenResponse;

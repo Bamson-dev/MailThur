@@ -491,3 +491,75 @@ export async function isCampaignActive(campaignId: string): Promise<boolean> {
 
   return data?.status === "active";
 }
+
+export interface SendLogEntry {
+  id: string;
+  campaign_id: string;
+  contact_id: string;
+  inbox_id: string;
+  step_order: number;
+  status: string;
+  error_message: string | null;
+  sent_at: string;
+}
+
+export interface CampaignContactRow {
+  id: string;
+  email: string;
+  first_name: string | null;
+  business_name: string | null;
+  current_step: number;
+  status: string;
+  next_send_at: string | null;
+}
+
+export async function getSendLogForCampaign(
+  userEmail: string,
+  campaignId: string
+): Promise<SendLogEntry[] | null> {
+  const campaign = await getCampaignForUser(userEmail, campaignId);
+  if (!campaign) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("send_log")
+    .select(
+      "id, campaign_id, contact_id, inbox_id, step_order, status, error_message, sent_at"
+    )
+    .eq("campaign_id", campaignId)
+    .order("sent_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    logger.error("Failed to fetch send log", error);
+    throw new Error("Send log fetch failed");
+  }
+
+  return (data ?? []) as SendLogEntry[];
+}
+
+export async function getContactsForCampaign(
+  userEmail: string,
+  campaignId: string
+): Promise<CampaignContactRow[] | null> {
+  const campaign = await getCampaignForUser(userEmail, campaignId);
+  if (!campaign) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("campaign_contacts")
+    .select(
+      "id, email, first_name, business_name, current_step, status, next_send_at"
+    )
+    .eq("campaign_id", campaignId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    logger.error("Failed to fetch campaign contacts", error);
+    throw new Error("Contacts fetch failed");
+  }
+
+  return (data ?? []) as CampaignContactRow[];
+}
