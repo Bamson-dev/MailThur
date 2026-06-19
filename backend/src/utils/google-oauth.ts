@@ -76,3 +76,33 @@ export async function fetchGoogleUserEmail(
 
   return data.email.trim().toLowerCase();
 }
+
+interface GoogleRefreshTokenResponse {
+  access_token: string;
+  expires_in: number;
+  token_type: string;
+}
+
+export async function refreshGoogleAccessToken(
+  refreshToken: string
+): Promise<{ accessToken: string; expiresAt: Date }> {
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Google token refresh failed");
+  }
+
+  const data = (await response.json()) as GoogleRefreshTokenResponse;
+  const expiresAt = new Date(Date.now() + data.expires_in * 1000);
+
+  return { accessToken: data.access_token, expiresAt };
+}

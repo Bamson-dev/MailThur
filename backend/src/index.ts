@@ -9,8 +9,10 @@ import healthRoutes from "./api/health.routes";
 import exampleRoutes from "./api/example.routes";
 import waitlistRoutes from "./api/waitlist.routes";
 import authRouter from "./api/auth-router";
+import campaignsRouter from "./api/campaigns-router";
 import { logger } from "./utils/logger";
 import { env } from "./config/env";
+import { startQueueSchedulers } from "./queue";
 
 const app = express();
 
@@ -67,6 +69,7 @@ app.use(globalRateLimiter);
 // Routes
 app.use(healthRoutes);
 app.use(authRouter);
+app.use("/api", campaignsRouter);
 app.use("/api", exampleRoutes);
 app.use("/api", waitlistRoutes);
 
@@ -78,6 +81,10 @@ app.listen(env.PORT, env.HOST, () => {
     host: env.HOST,
     port: env.PORT,
     nodeEnv: env.NODE_ENV,
+  });
+
+  startQueueSchedulers().catch((error) => {
+    logger.error("Failed to start queue schedulers", error);
   });
 });
 
