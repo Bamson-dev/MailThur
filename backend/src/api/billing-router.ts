@@ -15,7 +15,9 @@ import {
   PLAN_CONFIG,
   PaidPlanId,
   maxInboxesForPlan,
+  checkUserCanConnectInbox,
 } from "../repositories/subscriptions.repository";
+import { countConnectedInboxesForUser } from "../repositories/connected-inboxes.repository";
 
 const checkoutBodySchema = z.object({
   plan: z.enum(["starter", "growth", "agency"]),
@@ -133,6 +135,31 @@ apiRouter.get(
       }
 
       res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+apiRouter.get(
+  "/billing/inbox-eligibility",
+  billingLimiter,
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const connectedCount = await countConnectedInboxesForUser(userEmail);
+      const eligibility = await checkUserCanConnectInbox(
+        userEmail,
+        connectedCount
+      );
+
+      res.json({
+        allowed: eligibility.allowed,
+        plan: eligibility.plan,
+        max_inboxes: eligibility.maxInboxes,
+        connected_inboxes: connectedCount,
+      });
     } catch (error) {
       next(error);
     }

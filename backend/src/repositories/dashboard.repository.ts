@@ -1,13 +1,28 @@
 import { supabase } from "../config/supabase";
 import { logger } from "../utils/logger";
 import { listCampaignsForUser } from "./campaigns.repository";
-import { getCampaignAnalytics } from "./analytics.repository";
+import {
+  getCampaignAnalytics,
+  getInboxAnalytics,
+  InboxAnalyticsItem,
+} from "./analytics.repository";
+import {
+  ActivityEvent,
+  getRecentActivityForUser,
+} from "./campaigns.repository";
 
-export interface DashboardOverview {
+export interface DashboardStats {
   emails_sent_this_month: number;
   avg_open_rate: number;
   avg_reply_rate: number;
   active_campaigns_count: number;
+  connected_inboxes_count: number;
+}
+
+export interface DashboardOverviewResponse {
+  stats: DashboardStats;
+  activity: ActivityEvent[];
+  inboxes: InboxAnalyticsItem[];
 }
 
 export interface DailyAnalyticsPoint {
@@ -16,9 +31,9 @@ export interface DailyAnalyticsPoint {
   opens: number;
 }
 
-export async function getDashboardOverview(
+async function getDashboardStats(
   userEmail: string
-): Promise<DashboardOverview> {
+): Promise<Omit<DashboardStats, "connected_inboxes_count">> {
   const startOfMonth = new Date();
   startOfMonth.setUTCDate(1);
   startOfMonth.setUTCHours(0, 0, 0, 0);
@@ -84,6 +99,25 @@ export async function getDashboardOverview(
     avg_open_rate: Math.round(avgOpen * 10) / 10,
     avg_reply_rate: Math.round(avgReply * 10) / 10,
     active_campaigns_count: activeCampaignsCount,
+  };
+}
+
+export async function getDashboardOverview(
+  userEmail: string
+): Promise<DashboardOverviewResponse> {
+  const [statsBase, activity, inboxes] = await Promise.all([
+    getDashboardStats(userEmail),
+    getRecentActivityForUser(userEmail, 20),
+    getInboxAnalytics(userEmail),
+  ]);
+
+  return {
+    stats: {
+      ...statsBase,
+      connected_inboxes_count: inboxes.length,
+    },
+    activity,
+    inboxes,
   };
 }
 

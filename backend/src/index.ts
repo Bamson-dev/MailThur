@@ -3,7 +3,10 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { corsOrigins } from "./config/env";
-import { globalRateLimiter } from "./middleware/rateLimit";
+import {
+  authenticatedApiRateLimiter,
+  globalRateLimiter,
+} from "./middleware/rateLimit";
 import { errorHandler } from "./middleware/errorHandler";
 import healthRoutes from "./api/health.routes";
 import exampleRoutes from "./api/example.routes";
@@ -21,6 +24,8 @@ import unsubscribeRouter from "./api/unsubscribe-router";
 import activityRouter from "./api/activity-router";
 import dashboardRouter from "./api/dashboard-router";
 import contactsRouter from "./api/contacts-router";
+import statsRouter from "./api/stats-router";
+import toolsRouter from "./api/tools-router";
 import { logger } from "./utils/logger";
 import { env } from "./config/env";
 import { startQueueSchedulers } from "./queue";
@@ -78,8 +83,14 @@ app.use(cookieParser());
 
 registerFlutterwaveWebhook(app);
 
-// Global rate limiting — every route is limited by default
+// Global rate limiting — public routes only (/api uses higher authenticated cap)
 app.use(globalRateLimiter);
+
+// Public API routes (own rate limits; mounted before authenticated cap)
+app.use("/api/stats", statsRouter);
+app.use("/api/tools", toolsRouter);
+
+app.use("/api", authenticatedApiRateLimiter);
 
 // Routes
 app.use(healthRoutes);

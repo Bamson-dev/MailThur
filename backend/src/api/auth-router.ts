@@ -33,6 +33,7 @@ import {
 import { checkUserCanConnectInbox } from "../repositories/subscriptions.repository";
 import { refreshGoogleAccessToken } from "../utils/google-oauth";
 import { sendGmailMessage } from "../utils/gmail-send";
+import { getInboxDeliverability } from "../services/deliverability.service";
 import { env } from "../config/env";
 import { logger } from "../utils/logger";
 
@@ -250,6 +251,29 @@ router.post(
       }
 
       res.json({ message: "Inbox resumed.", status: "active" });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/api/inboxes/:id/health",
+  requireAuth,
+  validate({ params: inboxParamsSchema }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const { id } = (req as ValidatedRequest<unknown, unknown, InboxParams>)
+        .validatedParams;
+
+      const health = await getInboxDeliverability(userEmail, id);
+      if (!health) {
+        res.status(404).json({ error: "Inbox not found." });
+        return;
+      }
+
+      res.json({ health });
     } catch (error) {
       next(error);
     }
