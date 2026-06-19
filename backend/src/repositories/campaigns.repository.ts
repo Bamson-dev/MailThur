@@ -571,7 +571,7 @@ export async function getSendLogForCampaign(
   const { data, error } = await supabase
     .from("send_log")
     .select(
-      "id, campaign_id, contact_id, inbox_id, step_order, status, error_message, sent_at"
+      "id, campaign_id, contact_id, inbox_id, step_order, status, error_message, sent_at, opened_at, replied_at"
     )
     .eq("campaign_id", campaignId)
     .order("sent_at", { ascending: false })

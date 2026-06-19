@@ -6,6 +6,15 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 export type PlanId = "trial" | "starter" | "growth" | "agency";
 export type UpgradePlan = "starter" | "growth" | "agency";
 
+interface BillingStatusResponse {
+  plan: PlanId;
+  status: "active" | "cancelled" | "expired";
+  max_inboxes: number;
+  trial_emails_remaining?: number;
+  trial_days_remaining?: number;
+  trial_emails_sent?: number;
+}
+
 export interface BillingStatus {
   plan: PlanId;
   max_inboxes: number;
@@ -26,14 +35,21 @@ export async function fetchBillingStatus(): Promise<BillingStatus> {
     throw new Error("API URL is not configured");
   }
 
-  const response = await apiFetch<{ billing: BillingStatus }>(
+  const response = await apiFetch<BillingStatusResponse>(
     `${apiUrl}/api/billing/status`,
     fetchOptions({
       userMessage: "Unable to load billing status. Please try again.",
     })
   );
 
-  return response.billing;
+  return {
+    plan: response.plan,
+    max_inboxes: response.max_inboxes,
+    trial_emails_remaining: response.trial_emails_remaining,
+    trial_days_remaining: response.trial_days_remaining,
+    trial_emails_limit: 50,
+    subscription_active: response.status === "active",
+  };
 }
 
 export async function initiateCheckout(plan: UpgradePlan): Promise<string> {
@@ -41,7 +57,7 @@ export async function initiateCheckout(plan: UpgradePlan): Promise<string> {
     throw new Error("API URL is not configured");
   }
 
-  const response = await apiFetch<{ checkout_url: string }>(
+  const response = await apiFetch<{ payment_url: string }>(
     `${apiUrl}/api/billing/checkout`,
     fetchOptions({
       method: "POST",
@@ -51,5 +67,5 @@ export async function initiateCheckout(plan: UpgradePlan): Promise<string> {
     })
   );
 
-  return response.checkout_url;
+  return response.payment_url;
 }

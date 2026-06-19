@@ -35,14 +35,13 @@ export async function fetchCampaignAnalytics(
     throw new Error("API URL is not configured");
   }
 
-  const response = await apiFetch<{ analytics: CampaignAnalytics }>(
-    `${apiUrl}/api/analytics/campaigns/${campaignId}`,
-    fetchOptions({
-      userMessage: "Unable to load campaign analytics. Please try again.",
-    })
-  );
+  const response = await apiFetch<{
+    analytics: Omit<CampaignAnalytics, "campaign_id">;
+  }>(`${apiUrl}/api/analytics/campaigns/${campaignId}`, fetchOptions({
+    userMessage: "Unable to load campaign analytics. Please try again.",
+  }));
 
-  return response.analytics;
+  return { ...response.analytics, campaign_id: campaignId };
 }
 
 export async function fetchInboxAnalytics(): Promise<InboxAnalytics[]> {
@@ -50,12 +49,21 @@ export async function fetchInboxAnalytics(): Promise<InboxAnalytics[]> {
     throw new Error("API URL is not configured");
   }
 
-  const response = await apiFetch<{ inboxes: InboxAnalytics[] }>(
-    `${apiUrl}/api/analytics/inboxes`,
-    fetchOptions({
-      userMessage: "Unable to load inbox analytics. Please try again.",
-    })
-  );
+  const response = await apiFetch<{
+    inboxes: Array<
+      Omit<InboxAnalytics, "inbox_id"> & { id: string }
+    >;
+  }>(`${apiUrl}/api/analytics/inboxes`, fetchOptions({
+    userMessage: "Unable to load inbox analytics. Please try again.",
+  }));
 
-  return response.inboxes;
+  return response.inboxes.map((inbox) => ({
+    inbox_id: inbox.id,
+    inbox_email: inbox.inbox_email,
+    sent_today: inbox.sent_today,
+    sent_week: inbox.sent_week,
+    bounce_rate_7d: inbox.bounce_rate_7d,
+    daily_send_cap: inbox.daily_send_cap,
+    status: inbox.status,
+  }));
 }
