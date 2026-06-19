@@ -3,10 +3,12 @@ import Redis from "ioredis";
 import { env } from "../config/env";
 import { processSendQueue } from "./sender-queue";
 import { processDailyCapRamp } from "./cap-ramp-job";
+import { processReplyPolling } from "./reply-poll-job";
 import { logger } from "../utils/logger";
 
 const SEND_JOB_NAME = "process-sends";
 const CAP_RAMP_JOB_NAME = "daily-cap-ramp";
+const REPLY_POLL_JOB_NAME = "reply-poll";
 
 let sendQueue: Bull.Queue | null = null;
 let schedulersStarted = false;
@@ -53,6 +55,12 @@ export function getSendQueue(): Bull.Queue {
       return result;
     });
 
+    sendQueue.process(REPLY_POLL_JOB_NAME, async () => {
+      const result = await processReplyPolling();
+      logger.info("Reply poll processed", result);
+      return result;
+    });
+
     sendQueue.on("error", (error) => {
       logger.error("Send queue error", error);
     });
@@ -90,6 +98,17 @@ export async function startQueueSchedulers(): Promise<void> {
     {
       repeat: { every: 24 * 60 * 60 * 1000 },
       jobId: "mailthur-cap-ramp-repeat",
+      removeOnComplete: true,
+      removeOnFail: 50,
+    }
+  );
+
+  await queue.add(
+    REPLY_POLL_JOB_NAME,
+    {},
+    {
+      repeat: { every: 10 * 60 * 1000 },
+      jobId: "mailthur-reply-poll-repeat",
       removeOnComplete: true,
       removeOnFail: 50,
     }

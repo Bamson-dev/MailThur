@@ -26,6 +26,11 @@ function buildMimeMessage(params: {
   return lines.join("\r\n");
 }
 
+export interface GmailSendResult {
+  messageId: string;
+  threadId: string;
+}
+
 export async function sendGmailMessage(params: {
   accessToken: string;
   fromEmail: string;
@@ -33,7 +38,7 @@ export async function sendGmailMessage(params: {
   subject: string;
   body: string;
   contentType?: "text/plain" | "text/html";
-}): Promise<void> {
+}): Promise<GmailSendResult> {
   const raw = buildMimeMessage({
     to: params.toEmail,
     from: params.fromEmail,
@@ -58,6 +63,9 @@ export async function sendGmailMessage(params: {
     const errorBody = await response.text();
     throw new Error(`Gmail send failed: ${response.status} ${errorBody}`);
   }
+
+  const data = (await response.json()) as { id: string; threadId: string };
+  return { messageId: data.id, threadId: data.threadId };
 }
 
 const HARD_BOUNCE_PATTERNS = [

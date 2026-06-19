@@ -12,7 +12,7 @@ import {
   updateInboxTokens,
 } from "../repositories/connected-inboxes.repository";
 import { refreshGoogleAccessToken } from "../utils/google-oauth";
-import { sendGmailMessage, isHardBounceError } from "../utils/gmail-send";
+import { sendGmailMessage, isHardBounceError, GmailSendResult } from "../utils/gmail-send";
 import { personalizeText } from "../utils/personalize";
 import {
   buildInboxRotationState,
@@ -65,11 +65,11 @@ async function sendEmailWithRetry(
   subject: string,
   body: string,
   contentType: "text/plain" | "text/html" = "text/plain"
-): Promise<void> {
+): Promise<GmailSendResult> {
   let accessToken = await ensureValidAccessToken(inbox);
 
   try {
-    await sendGmailMessage({
+    return await sendGmailMessage({
       accessToken,
       fromEmail: inbox.inbox_email,
       toEmail,
@@ -77,7 +77,6 @@ async function sendEmailWithRetry(
       body,
       contentType,
     });
-    return;
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (!message.includes("401")) {
@@ -89,7 +88,7 @@ async function sendEmailWithRetry(
   await updateInboxTokens(inbox.id, refreshed.accessToken, refreshed.expiresAt);
   accessToken = refreshed.accessToken;
 
-  await sendGmailMessage({
+  return sendGmailMessage({
     accessToken,
     fromEmail: inbox.inbox_email,
     toEmail,
@@ -185,7 +184,7 @@ export async function processSendQueue(): Promise<{
 
       const htmlBody = appendTrackingPixel(plainBody, sendLogId);
 
-      await sendEmailWithRetry(
+      const gmailResult = await sendEmailWithRetry(
         inbox,
         contact.email,
         subject,
@@ -193,7 +192,10 @@ export async function processSendQueue(): Promise<{
         "text/html"
       );
 
-      await finalizeSendLog(sendLogId, "sent");
+      await finalizeSendLog(sendLogId, "sent", undefined, {
+        threadId: gmailResult.threadId,
+        messageId: gmailResult.messageId,
+      });
 
       recordInboxSend(inbox.id, rotation);
 
