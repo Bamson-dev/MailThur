@@ -185,6 +185,45 @@ export async function pauseCampaign(id: string): Promise<void> {
   });
 }
 
+export async function resumeCampaign(id: string): Promise<void> {
+  if (!apiUrl) {
+    throw new Error("API URL is not configured");
+  }
+
+  await apiFetch(`${apiUrl}/api/campaigns/${id}/resume`, {
+    ...fetchOptions({
+      method: "POST",
+      userMessage: "Unable to resume campaign. Please try again.",
+    }),
+  });
+}
+
+export async function deleteCampaign(id: string): Promise<void> {
+  if (!apiUrl) {
+    throw new Error("API URL is not configured");
+  }
+
+  await apiFetch(`${apiUrl}/api/campaigns/${id}`, {
+    ...fetchOptions({
+      method: "DELETE",
+      userMessage: "Unable to delete campaign. Please try again.",
+    }),
+  });
+}
+
+export async function deleteAllCampaigns(): Promise<void> {
+  if (!apiUrl) {
+    throw new Error("API URL is not configured");
+  }
+
+  await apiFetch(`${apiUrl}/api/campaigns`, {
+    ...fetchOptions({
+      method: "DELETE",
+      userMessage: "Unable to delete campaigns. Please try again.",
+    }),
+  });
+}
+
 export async function fetchCampaignContacts(
   id: string
 ): Promise<CampaignContact[]> {
