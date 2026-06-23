@@ -21,8 +21,9 @@ export interface Subscription {
   updated_at: string;
 }
 
-export const TRIAL_EMAIL_CAP = 50;
-export const TRIAL_DAYS = 7;
+export const TRIAL_EMAIL_CAP = 500;
+export const TRIAL_DAYS = 3;
+export const STARTER_MONTHLY_EMAIL_CAP = 30_000;
 
 export const PLAN_CONFIG = {
   trial: {
@@ -81,6 +82,9 @@ export async function getOrCreateSubscription(
     return existing;
   }
 
+  const trialExpiresAt = new Date();
+  trialExpiresAt.setDate(trialExpiresAt.getDate() + TRIAL_DAYS);
+
   const { data, error } = await supabase
     .from("subscriptions")
     .insert({
@@ -88,6 +92,7 @@ export async function getOrCreateSubscription(
       plan: "trial",
       status: "active",
       max_inboxes: PLAN_CONFIG.trial.max_inboxes,
+      trial_expires_at: trialExpiresAt.toISOString(),
     })
     .select("*")
     .single();
@@ -232,7 +237,65 @@ export function trialDaysRemaining(subscription: Subscription): number {
 
 export interface SendEligibility {
   allowed: boolean;
-  reason?: "trial_expired" | "trial_email_cap" | "subscription_inactive";
+  reason?:
+    | "trial_expired"
+    | "trial_email_cap"
+    | "subscription_inactive"
+    | "monthly_email_cap";
+}
+
+async function countEmailsSentSince(
+  userEmail: string,
+  sinceIso: string
+): Promise<number> {
+  const { data: campaigns, error: campaignError } = await supabase
+    .from("campaigns")
+    .select("id")
+    .eq("user_email", userEmail);
+
+  if (campaignError) {
+    logger.error("Failed to fetch campaigns for send cap", campaignError);
+    throw new Error("Send cap lookup failed");
+  }
+
+  const campaignIds = (campaigns ?? []).map((c) => c.id as string);
+  if (campaignIds.length === 0) {
+    return 0;
+  }
+
+  const { count, error: sentError } = await supabase
+    .from("send_log")
+    .select("id", { count: "exact", head: true })
+    .in("campaign_id", campaignIds)
+    .eq("status", "sent")
+    .gte("sent_at", sinceIso);
+
+  if (sentError) {
+    logger.error("Failed to count sends for cap", sentError);
+    throw new Error("Send cap lookup failed");
+  }
+
+  return count ?? 0;
+}
+
+export function monthlyEmailCapForPlan(plan: PlanId): number | null {
+  if (plan === "starter") {
+    return STARTER_MONTHLY_EMAIL_CAP;
+  }
+  return null;
+}
+
+export async function countMonthlyEmailsSent(
+  userEmail: string,
+  subscription: Subscription
+): Promise<number> {
+  const sinceIso =
+    subscription.current_period_start ??
+    new Date(
+      Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
+    ).toISOString();
+
+  return countEmailsSentSince(userEmail, sinceIso);
 }
 
 export async function checkUserCanSend(
@@ -245,6 +308,16 @@ export async function checkUserCanSend(
   }
 
   if (subscription.plan !== "trial") {
+    const monthlyCap = monthlyEmailCapForPlan(subscription.plan);
+    if (monthlyCap != null) {
+      const sentThisPeriod = await countMonthlyEmailsSent(
+        userEmail,
+        subscription
+      );
+      if (sentThisPeriod >= monthlyCap) {
+        return { allowed: false, reason: "monthly_email_cap" };
+      }
+    }
     return { allowed: true };
   }
 

@@ -30,7 +30,7 @@ import {
   countConnectedInboxesForUser,
   inboxExistsForUser,
 } from "../repositories/connected-inboxes.repository";
-import { checkUserCanConnectInbox } from "../repositories/subscriptions.repository";
+import { checkUserCanConnectInbox, getOrCreateSubscription } from "../repositories/subscriptions.repository";
 import { refreshGoogleAccessToken } from "../utils/google-oauth";
 import { sendGmailMessage } from "../utils/gmail-send";
 import { getInboxDeliverability } from "../services/deliverability.service";
@@ -75,12 +75,18 @@ function dashboardRedirect(
 router.post(
   "/auth/session",
   validate({ body: sessionBodySchema }),
-  (req: Request, res: Response) => {
-    const { email } = (req as ValidatedRequest<SessionBody>).validatedBody;
-    const token = createSessionToken(email);
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email } = (req as ValidatedRequest<SessionBody>).validatedBody;
+      const token = createSessionToken(email);
 
-    res.cookie(SESSION_COOKIE_NAME, token, sessionCookieOptions());
-    res.json({ message: "Session established.", token });
+      await getOrCreateSubscription(email);
+
+      res.cookie(SESSION_COOKIE_NAME, token, sessionCookieOptions());
+      res.json({ message: "Session established.", token });
+    } catch (error) {
+      next(error);
+    }
   }
 );
 

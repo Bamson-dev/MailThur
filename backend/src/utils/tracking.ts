@@ -29,6 +29,17 @@ export function appendTrackingPixel(body: string, sendLogId: string): string {
   return `<html><body>${escaped}${pixel}${footer}</body></html>`;
 }
 
+/** MailThur trial branding appended to outgoing campaign emails. */
+export const MAILTHUR_TRIAL_BRANDING =
+  "Sent with MailThur — Upgrade at https://mailthur.com";
+
+export function appendTrialBranding(body: string): string {
+  if (body.includes(MAILTHUR_TRIAL_BRANDING)) {
+    return body;
+  }
+  return `${body}\n\n---\n${MAILTHUR_TRIAL_BRANDING}`;
+}
+
 /** Plain-text unsubscribe line appended before HTML conversion in queue. */
 export function appendPlainUnsubscribeLine(body: string, sendLogId: string): string {
   const url = buildUnsubscribeUrl(sendLogId);

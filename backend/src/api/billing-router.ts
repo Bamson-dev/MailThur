@@ -16,6 +16,10 @@ import {
   PaidPlanId,
   maxInboxesForPlan,
   checkUserCanConnectInbox,
+  TRIAL_EMAIL_CAP,
+  TRIAL_DAYS,
+  countMonthlyEmailsSent,
+  monthlyEmailCapForPlan,
 } from "../repositories/subscriptions.repository";
 import { countConnectedInboxesForUser } from "../repositories/connected-inboxes.repository";
 
@@ -23,7 +27,12 @@ const checkoutBodySchema = z.object({
   plan: z.enum(["starter", "growth", "agency"]),
 });
 
+const verifyBodySchema = z.object({
+  reference: z.string().min(1).max(255),
+});
+
 type CheckoutBody = z.infer<typeof checkoutBodySchema>;
+type VerifyBody = z.infer<typeof verifyBodySchema>;
 
 const paystackEventSchema = z.object({
   event: z.string(),
@@ -131,7 +140,18 @@ apiRouter.get(
         response.trial_days_remaining = trialDaysRemaining(subscription);
         response.trial_emails_remaining = trialEmailsRemaining(subscription);
         response.trial_emails_sent = subscription.trial_emails_sent;
+        response.trial_emails_limit = TRIAL_EMAIL_CAP;
+        response.trial_days_limit = TRIAL_DAYS;
         response.trial_expires_at = subscription.trial_expires_at;
+      }
+
+      const monthlyCap = monthlyEmailCapForPlan(subscription.plan);
+      if (monthlyCap != null && subscription.status === "active") {
+        response.monthly_emails_cap = monthlyCap;
+        response.monthly_emails_sent = await countMonthlyEmailsSent(
+          userEmail,
+          subscription
+        );
       }
 
       res.json(response);
@@ -193,10 +213,11 @@ apiRouter.post(
               amount: pricing.price_ngn_kobo,
               reference,
               metadata: {
+                product: "mailthur",
                 user_email: userEmail,
                 plan,
               },
-              callback_url: `${env.FRONTEND_URL}/dashboard?billing=success`,
+              callback_url: `${env.FRONTEND_URL}/dashboard/billing?billing=success`,
             }),
           }
         );
@@ -234,11 +255,12 @@ apiRouter.post(
           tx_ref: txRef,
           amount: pricing.price_usd,
           currency: "USD",
-          redirect_url: `${env.FRONTEND_URL}/dashboard?billing=success`,
+          redirect_url: `${env.FRONTEND_URL}/dashboard/billing?billing=success`,
           customer: {
             email: userEmail,
           },
           meta: {
+            product: "mailthur",
             user_email: userEmail,
             plan,
           },
@@ -274,6 +296,130 @@ apiRouter.post(
   }
 );
 
+apiRouter.post(
+  "/billing/verify",
+  billingLimiter,
+  requireAuth,
+  validate({ body: verifyBodySchema }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const { reference } = (req as ValidatedRequest<VerifyBody>).validatedBody;
+
+      const response = await fetch(
+        `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+          },
+        }
+      );
+
+      const payload = (await response.json()) as {
+        status?: boolean;
+        message?: string;
+        data?: {
+          status?: string;
+          metadata?: Record<string, unknown>;
+          customer?: { email?: string };
+        };
+      };
+
+      if (!response.ok || !payload.status || !payload.data) {
+        res.status(400).json({ error: "Payment verification failed." });
+        return;
+      }
+
+      if (payload.data.status !== "success") {
+        res.status(400).json({
+          error: "Payment not completed.",
+          status: payload.data.status,
+        });
+        return;
+      }
+
+      const metadata = payload.data.metadata;
+      const plan = parsePlanFromMetadata(metadata);
+      const metadataEmail = parseUserEmailFromMetadata(metadata);
+      const paidEmail =
+        metadataEmail ??
+        (typeof payload.data.customer?.email === "string"
+          ? payload.data.customer.email
+          : null);
+
+      if (!paidEmail || paidEmail.toLowerCase() !== userEmail.toLowerCase()) {
+        res.status(403).json({ error: "Payment does not match your account." });
+        return;
+      }
+
+      if (!plan) {
+        res.status(400).json({ error: "Missing plan in payment metadata." });
+        return;
+      }
+
+      const subscription = await upgradeSubscription({
+        userEmail,
+        plan,
+      });
+
+      res.json({
+        verified: true,
+        plan: subscription.plan,
+        status: subscription.status,
+        max_inboxes: subscription.max_inboxes,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+apiRouter.post(
+  "/billing/cancel",
+  billingLimiter,
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const subscription = await getOrCreateSubscription(userEmail);
+
+      if (subscription.plan === "trial") {
+        res.status(400).json({ error: "Trial subscriptions cannot be cancelled." });
+        return;
+      }
+
+      if (subscription.paystack_subscription_code) {
+        await fetch(
+          `https://api.paystack.co/subscription/disable`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              code: subscription.paystack_subscription_code,
+              token: subscription.paystack_subscription_code,
+            }),
+          }
+        ).catch((error) => {
+          logger.warn("Paystack subscription disable failed", { error, userEmail });
+        });
+      }
+
+      await cancelSubscription(userEmail);
+
+      res.json({
+        cancelled: true,
+        plan: subscription.plan,
+        status: "cancelled",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 function verifyPaystackSignature(
   rawBody: Buffer,
   signature: string | undefined
@@ -282,10 +428,8 @@ function verifyPaystackSignature(
     return false;
   }
 
-  const hash = crypto
-    .createHmac("sha512", env.PAYSTACK_SECRET_KEY)
-    .update(rawBody)
-    .digest("hex");
+  const secret = env.PAYSTACK_WEBHOOK_SECRET ?? env.PAYSTACK_SECRET_KEY;
+  const hash = crypto.createHmac("sha512", secret).update(rawBody).digest("hex");
 
   return hash === signature;
 }
@@ -443,6 +587,19 @@ export async function handleFlutterwaveWebhook(
 export function registerPaystackWebhook(app: import("express").Express): void {
   app.post(
     "/webhooks/paystack",
+    webhookLimiter,
+    raw({ type: "application/json" }),
+    (req, res, next) => {
+      handlePaystackWebhook(req, res).catch(next);
+    }
+  );
+}
+
+export function registerPaystackBillingWebhook(
+  app: import("express").Express
+): void {
+  app.post(
+    "/webhooks/paystack/billing",
     webhookLimiter,
     raw({ type: "application/json" }),
     (req, res, next) => {

@@ -158,7 +158,7 @@ export default function DashboardLayout({
               plan={billing.plan}
               maxInboxes={billing.max_inboxes}
               headline="Your trial has ended"
-              description="You've used all 50 trial emails. Upgrade to a paid plan to continue sending campaigns."
+              description="You've used all trial emails. Upgrade to a paid plan to continue sending campaigns."
               dismissible={false}
             />
             <UpgradeModal

@@ -25,9 +25,14 @@ import {
   incrementTrialEmailsSent,
   expireSubscription,
   TRIAL_EMAIL_CAP,
+  getOrCreateSubscription,
 } from "../repositories/subscriptions.repository";
 import { logger } from "../utils/logger";
-import { appendTrackingPixel, appendPlainUnsubscribeLine } from "../utils/tracking";
+import {
+  appendTrackingPixel,
+  appendPlainUnsubscribeLine,
+  appendTrialBranding,
+} from "../utils/tracking";
 
 const rotationByUser = new Map<string, InboxRotationState>();
 
@@ -118,6 +123,7 @@ export async function processSendQueue(): Promise<{
     string,
     Awaited<ReturnType<typeof checkUserCanSend>>
   >();
+  const trialUserCache = new Map<string, boolean>();
 
   for (const contact of contacts) {
     processed += 1;
@@ -170,7 +176,17 @@ export async function processSendQueue(): Promise<{
     }
 
     const subject = personalizeText(step.subject, contact);
-    const plainBody = personalizeText(step.body, contact);
+    let plainBody = personalizeText(step.body, contact);
+
+    let isTrialUser = trialUserCache.get(contact.user_email);
+    if (isTrialUser === undefined) {
+      const subscription = await getOrCreateSubscription(contact.user_email);
+      isTrialUser = subscription.plan === "trial";
+      trialUserCache.set(contact.user_email, isTrialUser);
+    }
+    if (isTrialUser) {
+      plainBody = appendTrialBranding(plainBody);
+    }
 
     let sendLogId: string | null = null;
 

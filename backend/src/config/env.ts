@@ -56,6 +56,10 @@ const envSchema = z.object({
     emptyToUndefined,
     z.string().min(1).default("pk_test_mailthur_dev_placeholder")
   ),
+  PAYSTACK_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  PAYSTACK_STARTER_PLAN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  PAYSTACK_GROWTH_PLAN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  PAYSTACK_AGENCY_PLAN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   FLUTTERWAVE_SECRET_KEY: z.preprocess(
     emptyToUndefined,
     z.string().min(1).default("FLWSECK_TEST-mailthur_dev_placeholder")

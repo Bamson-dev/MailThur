@@ -11,6 +11,7 @@ import {
   BillingStatus,
   fetchBillingStatus,
 } from "@/lib/billing";
+import { TRIAL_DAY_LIMIT, TRIAL_EMAIL_LIMIT } from "@/lib/billing-plans";
 import { deleteAllCampaigns } from "@/lib/campaigns";
 import { fetchCurrentUser } from "@/lib/dashboard";
 import { disconnectAllInboxes } from "@/lib/inboxes";
@@ -91,15 +92,15 @@ export default function SettingsPage() {
     }
   }
 
+  const trialLimit = billing?.trial_emails_limit ?? TRIAL_EMAIL_LIMIT;
+  const trialDaysLimit = billing?.trial_days_limit ?? TRIAL_DAY_LIMIT;
   const trialEmailsUsed =
     billing?.trial_emails_limit && billing.trial_emails_remaining != null
-      ? billing.trial_emails_limit - billing.trial_emails_remaining
+      ? trialLimit - billing.trial_emails_remaining
       : 0;
-  const trialEmailsPct = billing?.trial_emails_limit
-    ? (trialEmailsUsed / billing.trial_emails_limit) * 100
-    : 0;
+  const trialEmailsPct = trialLimit ? (trialEmailsUsed / trialLimit) * 100 : 0;
   const trialDaysPct = billing?.trial_days_remaining
-    ? Math.max(0, ((7 - billing.trial_days_remaining) / 7) * 100)
+    ? Math.max(0, ((trialDaysLimit - billing.trial_days_remaining) / trialDaysLimit) * 100)
     : 0;
 
   if (pageLoading) {
@@ -151,7 +152,7 @@ export default function SettingsPage() {
                 <div className="flex justify-between text-xs text-muted">
                   <span>Trial emails used</span>
                   <span>
-                    {trialEmailsUsed}/{billing.trial_emails_limit ?? 50}
+                    {trialEmailsUsed}/{trialLimit}
                   </span>
                 </div>
                 <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-border-subtle">
@@ -164,7 +165,7 @@ export default function SettingsPage() {
               <div>
                 <div className="flex justify-between text-xs text-muted">
                   <span>Trial period</span>
-                  <span>{billing.trial_days_remaining ?? 0} of 7 days left</span>
+                  <span>{billing.trial_days_remaining ?? 0} of {trialDaysLimit} days left</span>
                 </div>
                 <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-border-subtle">
                   <div

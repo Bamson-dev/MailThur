@@ -16,6 +16,7 @@ import campaignsRouter from "./api/campaigns-router";
 import analyticsRouter from "./api/analytics-router";
 import billingRouter, {
   registerPaystackWebhook,
+  registerPaystackBillingWebhook,
   registerFlutterwaveWebhook,
 } from "./api/billing-router";
 import trackRouter from "./api/track-router";
@@ -77,6 +78,7 @@ app.use(
 );
 
 registerPaystackWebhook(app);
+registerPaystackBillingWebhook(app);
 
 app.use(express.json());
 app.use(cookieParser());
