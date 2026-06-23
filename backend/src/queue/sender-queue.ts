@@ -136,6 +136,12 @@ export async function processSendQueue(): Promise<{
 
     if (!eligibility.allowed) {
       skipped += 1;
+      logger.info("Send skipped — billing limit", {
+        userEmail: contact.user_email,
+        reason: eligibility.reason ?? "unknown",
+        campaignId: contact.campaign_id,
+        contactId: contact.id,
+      });
       continue;
     }
 
@@ -184,9 +190,6 @@ export async function processSendQueue(): Promise<{
       isTrialUser = subscription.plan === "trial";
       trialUserCache.set(contact.user_email, isTrialUser);
     }
-    if (isTrialUser) {
-      plainBody = appendTrialBranding(plainBody);
-    }
 
     let sendLogId: string | null = null;
 
@@ -198,8 +201,11 @@ export async function processSendQueue(): Promise<{
         stepOrder: contact.current_step,
       });
 
-      const plainBodyWithUnsubscribe = appendPlainUnsubscribeLine(plainBody, sendLogId);
-      const htmlBody = appendTrackingPixel(plainBodyWithUnsubscribe, sendLogId);
+      let plainBodyWithExtras = appendPlainUnsubscribeLine(plainBody, sendLogId);
+      if (isTrialUser) {
+        plainBodyWithExtras = appendTrialBranding(plainBodyWithExtras);
+      }
+      const htmlBody = appendTrackingPixel(plainBodyWithExtras, sendLogId);
 
       const gmailResult = await sendEmailWithRetry(
         inbox,

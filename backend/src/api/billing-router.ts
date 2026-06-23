@@ -7,19 +7,15 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { env } from "../config/env";
 import { logger } from "../utils/logger";
 import {
+  buildBillingStatusPayload,
   getOrCreateSubscription,
   upgradeSubscription,
   cancelSubscription,
-  trialDaysRemaining,
-  trialEmailsRemaining,
-  PLAN_CONFIG,
-  PaidPlanId,
-  maxInboxesForPlan,
+  setSubscriptionPastDue,
+  renewSubscriptionPeriod,
+  getSubscriptionByPaystackCode,
   checkUserCanConnectInbox,
-  TRIAL_EMAIL_CAP,
-  TRIAL_DAYS,
-  countMonthlyEmailsSent,
-  monthlyEmailCapForPlan,
+  PaidPlanId,
 } from "../repositories/subscriptions.repository";
 import { countConnectedInboxesForUser } from "../repositories/connected-inboxes.repository";
 
@@ -37,12 +33,6 @@ type VerifyBody = z.infer<typeof verifyBodySchema>;
 const paystackEventSchema = z.object({
   event: z.string(),
   data: z.record(z.unknown()),
-});
-
-const flutterwaveEventSchema = z.object({
-  event: z.string().optional(),
-  data: z.record(z.unknown()).optional(),
-  "event.type": z.string().optional(),
 });
 
 export const billingLimiter = rateLimit({
@@ -63,36 +53,19 @@ export const webhookLimiter = rateLimit({
 
 const apiRouter = Router();
 
-function getClientIp(req: Request): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && forwarded.length > 0) {
-    return forwarded.split(",")[0]?.trim() ?? "";
+function paystackPlanCode(plan: PaidPlanId): string {
+  const map: Record<PaidPlanId, string | undefined> = {
+    starter: env.PAYSTACK_STARTER_PLAN,
+    growth: env.PAYSTACK_GROWTH_PLAN,
+    agency: env.PAYSTACK_AGENCY_PLAN,
+  };
+
+  const code = map[plan];
+  if (!code) {
+    throw new Error(`Paystack plan code not configured for ${plan}`);
   }
 
-  return req.ip ?? req.socket.remoteAddress ?? "";
-}
-
-async function isNigerianIp(ip: string): Promise<boolean> {
-  if (!ip || ip === "::1" || ip === "127.0.0.1") {
-    return false;
-  }
-
-  try {
-    const response = await fetch(`https://ipapi.co/${ip}/country_code/`, {
-      headers: { "User-Agent": "MailThur-Billing/1.0" },
-    });
-
-    if (!response.ok) {
-      logger.warn("ipapi.co lookup failed", { status: response.status });
-      return false;
-    }
-
-    const country = (await response.text()).trim().toUpperCase();
-    return country === "NG";
-  } catch (error) {
-    logger.warn("ipapi.co lookup error", { error });
-    return false;
-  }
+  return code;
 }
 
 function parsePlanFromMetadata(metadata: unknown): PaidPlanId | null {
@@ -120,48 +93,6 @@ function parseUserEmailFromMetadata(metadata: unknown): string | null {
 }
 
 apiRouter.get(
-  "/billing/status",
-  billingLimiter,
-  requireAuth,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { userEmail } = req as AuthenticatedRequest;
-      const subscription = await getOrCreateSubscription(userEmail);
-
-      const response: Record<string, unknown> = {
-        plan: subscription.plan,
-        status: subscription.status,
-        max_inboxes: subscription.max_inboxes,
-        current_period_start: subscription.current_period_start,
-        current_period_end: subscription.current_period_end,
-      };
-
-      if (subscription.plan === "trial" && subscription.status === "active") {
-        response.trial_days_remaining = trialDaysRemaining(subscription);
-        response.trial_emails_remaining = trialEmailsRemaining(subscription);
-        response.trial_emails_sent = subscription.trial_emails_sent;
-        response.trial_emails_limit = TRIAL_EMAIL_CAP;
-        response.trial_days_limit = TRIAL_DAYS;
-        response.trial_expires_at = subscription.trial_expires_at;
-      }
-
-      const monthlyCap = monthlyEmailCapForPlan(subscription.plan);
-      if (monthlyCap != null && subscription.status === "active") {
-        response.monthly_emails_cap = monthlyCap;
-        response.monthly_emails_sent = await countMonthlyEmailsSent(
-          userEmail,
-          subscription
-        );
-      }
-
-      res.json(response);
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-apiRouter.get(
   "/billing/inbox-eligibility",
   billingLimiter,
   requireAuth,
@@ -186,6 +117,21 @@ apiRouter.get(
   }
 );
 
+apiRouter.get(
+  "/billing/status",
+  billingLimiter,
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userEmail } = req as AuthenticatedRequest;
+      const status = await buildBillingStatusPayload(userEmail);
+      res.json(status);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 apiRouter.post(
   "/billing/checkout",
   billingLimiter,
@@ -195,90 +141,45 @@ apiRouter.post(
     try {
       const { userEmail } = req as AuthenticatedRequest;
       const { plan } = (req as ValidatedRequest<CheckoutBody>).validatedBody;
-      const pricing = PLAN_CONFIG[plan];
-      const usePaystack = await isNigerianIp(getClientIp(req));
 
-      if (usePaystack) {
-        const reference = `mailthur-${plan}-${Date.now()}`;
-        const response = await fetch(
-          "https://api.paystack.co/transaction/initialize",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              email: userEmail,
-              amount: pricing.price_ngn_kobo,
-              reference,
-              metadata: {
-                product: "mailthur",
-                user_email: userEmail,
-                plan,
-              },
-              callback_url: `${env.FRONTEND_URL}/dashboard/billing?billing=success`,
-            }),
-          }
-        );
-
-        const payload = (await response.json()) as {
-          status?: boolean;
-          message?: string;
-          data?: { authorization_url?: string; reference?: string };
-        };
-
-        if (!response.ok || !payload.status || !payload.data?.authorization_url) {
-          logger.error("Paystack checkout initialization failed", undefined, {
-            status: response.status,
-          });
-          res.status(502).json({ error: "Payment initialization failed." });
-          return;
-        }
-
-        res.json({
-          gateway: "paystack",
-          payment_url: payload.data.authorization_url,
-          reference: payload.data.reference ?? reference,
-        });
+      let planCode: string;
+      try {
+        planCode = paystackPlanCode(plan);
+      } catch {
+        logger.error("Paystack plan code missing", undefined, { plan });
+        res.status(503).json({ error: "Billing is not configured." });
         return;
       }
 
-      const txRef = `mailthur-${plan}-${Date.now()}`;
-      const response = await fetch("https://api.flutterwave.com/v3/payments", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.FLUTTERWAVE_SECRET_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          tx_ref: txRef,
-          amount: pricing.price_usd,
-          currency: "USD",
-          redirect_url: `${env.FRONTEND_URL}/dashboard/billing?billing=success`,
-          customer: {
+      const response = await fetch(
+        "https://api.paystack.co/transaction/initialize",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
             email: userEmail,
-          },
-          meta: {
-            product: "mailthur",
-            user_email: userEmail,
-            plan,
-          },
-        }),
-      });
+            plan: planCode,
+            callback_url: `${env.FRONTEND_URL}/dashboard/billing?payment=success`,
+            metadata: {
+              product: "mailthur",
+              plan,
+              user_email: userEmail,
+            },
+          }),
+        }
+      );
 
       const payload = (await response.json()) as {
-        status?: string;
+        status?: boolean;
         message?: string;
-        data?: { link?: string };
+        data?: { authorization_url?: string; reference?: string };
       };
 
-      if (
-        !response.ok ||
-        payload.status !== "success" ||
-        !payload.data?.link
-      ) {
-        logger.error("Flutterwave checkout initialization failed", undefined, {
+      if (!response.ok || !payload.status || !payload.data?.authorization_url) {
+        logger.error("Paystack checkout initialization failed", undefined, {
           status: response.status,
         });
         res.status(502).json({ error: "Payment initialization failed." });
@@ -286,9 +187,8 @@ apiRouter.post(
       }
 
       res.json({
-        gateway: "flutterwave",
-        payment_url: payload.data.link,
-        reference: txRef,
+        authorization_url: payload.data.authorization_url,
+        reference: payload.data.reference ?? null,
       });
     } catch (error) {
       next(error);
@@ -317,11 +217,12 @@ apiRouter.post(
 
       const payload = (await response.json()) as {
         status?: boolean;
-        message?: string;
         data?: {
           status?: string;
           metadata?: Record<string, unknown>;
-          customer?: { email?: string };
+          customer?: { email?: string; customer_code?: string };
+          subscription?: { subscription_code?: string };
+          subscription_code?: string;
         };
       };
 
@@ -357,24 +258,32 @@ apiRouter.post(
         return;
       }
 
-      const subscription = await upgradeSubscription({
+      const subscriptionCode =
+        payload.data.subscription?.subscription_code ??
+        (typeof payload.data.subscription_code === "string"
+          ? payload.data.subscription_code
+          : null);
+      const customerCode =
+        typeof payload.data.customer?.customer_code === "string"
+          ? payload.data.customer.customer_code
+          : null;
+
+      await upgradeSubscription({
         userEmail,
         plan,
+        paystackSubscriptionCode: subscriptionCode,
+        paystackCustomerCode: customerCode,
       });
 
-      res.json({
-        verified: true,
-        plan: subscription.plan,
-        status: subscription.status,
-        max_inboxes: subscription.max_inboxes,
-      });
+      const status = await buildBillingStatusPayload(userEmail);
+      res.json(status);
     } catch (error) {
       next(error);
     }
   }
 );
 
-apiRouter.post(
+apiRouter.delete(
   "/billing/cancel",
   billingLimiter,
   requireAuth,
@@ -388,30 +297,39 @@ apiRouter.post(
         return;
       }
 
-      if (subscription.paystack_subscription_code) {
-        await fetch(
-          `https://api.paystack.co/subscription/disable`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              code: subscription.paystack_subscription_code,
-              token: subscription.paystack_subscription_code,
-            }),
-          }
-        ).catch((error) => {
-          logger.warn("Paystack subscription disable failed", { error, userEmail });
+      if (!subscription.paystack_subscription_code) {
+        res.status(400).json({ error: "No active Paystack subscription found." });
+        return;
+      }
+
+      const response = await fetch(
+        "https://api.paystack.co/subscription/disable",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            code: subscription.paystack_subscription_code,
+            token: subscription.paystack_subscription_code,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        logger.error("Paystack subscription disable failed", undefined, {
+          userEmail,
+          status: response.status,
         });
+        res.status(502).json({ error: "Unable to cancel subscription." });
+        return;
       }
 
       await cancelSubscription(userEmail);
 
       res.json({
-        cancelled: true,
-        plan: subscription.plan,
+        message: "Subscription cancelled successfully.",
         status: "cancelled",
       });
     } catch (error) {
@@ -420,54 +338,118 @@ apiRouter.post(
   }
 );
 
-function verifyPaystackSignature(
+function verifyPaystackWebhookSignature(
   rawBody: Buffer,
   signature: string | undefined
 ): boolean {
-  if (!signature) {
+  if (!signature || !env.PAYSTACK_WEBHOOK_SECRET) {
     return false;
   }
 
-  const secret = env.PAYSTACK_WEBHOOK_SECRET ?? env.PAYSTACK_SECRET_KEY;
-  const hash = crypto.createHmac("sha512", secret).update(rawBody).digest("hex");
+  const hash = crypto
+    .createHmac("sha512", env.PAYSTACK_WEBHOOK_SECRET)
+    .update(rawBody)
+    .digest("hex");
 
   return hash === signature;
 }
 
-function verifyFlutterwaveHash(hash: string | undefined): boolean {
-  return !!hash && hash === env.FLUTTERWAVE_SECRET_KEY;
-}
-
-async function fulfillPaidPlan(
-  userEmail: string,
-  plan: PaidPlanId,
-  options: {
-    paystackSubscriptionCode?: string | null;
-    flutterwaveSubscriptionId?: string | null;
-  } = {}
+async function processPaystackBillingEvent(
+  event: z.infer<typeof paystackEventSchema>
 ): Promise<void> {
-  await upgradeSubscription({
-    userEmail,
-    plan,
-    paystackSubscriptionCode: options.paystackSubscriptionCode ?? null,
-    flutterwaveSubscriptionId: options.flutterwaveSubscriptionId ?? null,
-  });
+  const data = event.data;
 
-  logger.info("Subscription upgraded", {
-    userEmail,
-    plan,
-    maxInboxes: maxInboxesForPlan(plan),
-  });
+  if (event.event === "charge.success") {
+    const subscriptionCode =
+      typeof data.subscription_code === "string"
+        ? data.subscription_code
+        : null;
+
+    if (subscriptionCode) {
+      await renewSubscriptionPeriod(subscriptionCode);
+      return;
+    }
+
+    const metadata = data.metadata;
+    const userEmail = parseUserEmailFromMetadata(metadata);
+    const plan = parsePlanFromMetadata(metadata);
+
+    if (userEmail && plan) {
+      await upgradeSubscription({
+        userEmail,
+        plan,
+        paystackSubscriptionCode:
+          typeof data.subscription_code === "string"
+            ? data.subscription_code
+            : null,
+        paystackCustomerCode:
+          typeof data.customer === "object" &&
+          data.customer &&
+          typeof (data.customer as Record<string, unknown>).customer_code ===
+            "string"
+            ? ((data.customer as Record<string, unknown>).customer_code as string)
+            : null,
+      });
+    }
+  }
+
+  if (event.event === "subscription.disable") {
+    const subscriptionCode =
+      typeof data.subscription_code === "string"
+        ? data.subscription_code
+        : null;
+
+    if (subscriptionCode) {
+      const sub = await getSubscriptionByPaystackCode(subscriptionCode);
+      if (sub) {
+        await cancelSubscription(sub.user_email);
+      }
+    }
+  }
+
+  if (event.event === "subscription.not_renew") {
+    const subscriptionCode =
+      typeof data.subscription_code === "string"
+        ? data.subscription_code
+        : null;
+
+    if (subscriptionCode) {
+      const sub = await getSubscriptionByPaystackCode(subscriptionCode);
+      if (sub) {
+        await setSubscriptionPastDue(sub.user_email);
+      }
+    }
+  }
+
+  if (event.event === "invoice.payment_failed") {
+    const subscriptionCode =
+      typeof data.subscription === "object" &&
+      data.subscription &&
+      typeof (data.subscription as Record<string, unknown>).subscription_code ===
+        "string"
+        ? ((data.subscription as Record<string, unknown>)
+            .subscription_code as string)
+        : typeof data.subscription_code === "string"
+          ? data.subscription_code
+          : null;
+
+    if (subscriptionCode) {
+      const sub = await getSubscriptionByPaystackCode(subscriptionCode);
+      if (sub) {
+        await setSubscriptionPastDue(sub.user_email);
+      }
+    }
+  }
 }
 
-export async function handlePaystackWebhook(
+export async function handlePaystackBillingWebhook(
   req: Request,
   res: Response
 ): Promise<void> {
   const signature = req.headers["x-paystack-signature"] as string | undefined;
   const rawBody = req.body as Buffer;
 
-  if (!Buffer.isBuffer(rawBody) || !verifyPaystackSignature(rawBody, signature)) {
+  if (!Buffer.isBuffer(rawBody) || !verifyPaystackWebhookSignature(rawBody, signature)) {
     res.status(401).json({ error: "Invalid signature." });
     return;
   }
@@ -480,108 +462,23 @@ export async function handlePaystackWebhook(
     return;
   }
 
-  const data = event.data;
+  res.status(200).json({ received: true });
 
-  if (event.event === "charge.success") {
-    const metadata = data.metadata;
-    const userEmail =
-      parseUserEmailFromMetadata(metadata) ??
-      (typeof data.customer === "object" &&
-      data.customer &&
-      typeof (data.customer as Record<string, unknown>).email === "string"
-        ? ((data.customer as Record<string, unknown>).email as string)
-        : null);
-    const plan = parsePlanFromMetadata(metadata);
-
-    if (userEmail && plan) {
-      await fulfillPaidPlan(userEmail, plan, {
-        paystackSubscriptionCode:
-          typeof data.subscription_code === "string"
-            ? data.subscription_code
-            : null,
+  setImmediate(() => {
+    processPaystackBillingEvent(event).catch((error) => {
+      logger.error("Paystack billing webhook processing failed", error, {
+        event: event.event,
       });
-    }
-  }
-
-  if (
-    event.event === "subscription.disable" ||
-    event.event === "subscription.not_renew"
-  ) {
-    const customerEmail =
-      typeof data.customer === "object" &&
-      data.customer &&
-      typeof (data.customer as Record<string, unknown>).email === "string"
-        ? ((data.customer as Record<string, unknown>).email as string)
-        : null;
-
-    if (customerEmail) {
-      await cancelSubscription(customerEmail);
-    }
-  }
-
-  if (event.event === "subscription.create" || event.event === "invoice.update") {
-    const metadata = data.metadata;
-    const userEmail = parseUserEmailFromMetadata(metadata);
-    const plan = parsePlanFromMetadata(metadata);
-
-    if (userEmail && plan) {
-      await fulfillPaidPlan(userEmail, plan, {
-        paystackSubscriptionCode:
-          typeof data.subscription_code === "string"
-            ? data.subscription_code
-            : null,
-      });
-    }
-  }
-
-  res.json({ received: true });
+    });
+  });
 }
 
-export async function handleFlutterwaveWebhook(
+/** Legacy webhook path — delegates to billing handler. */
+export async function handlePaystackWebhook(
   req: Request,
   res: Response
 ): Promise<void> {
-  const verifHash = req.headers["verif-hash"] as string | undefined;
-
-  if (!verifyFlutterwaveHash(verifHash)) {
-    res.status(401).json({ error: "Invalid signature." });
-    return;
-  }
-
-  let event: z.infer<typeof flutterwaveEventSchema>;
-  try {
-    event = flutterwaveEventSchema.parse(req.body);
-  } catch {
-    res.status(400).json({ error: "Invalid payload." });
-    return;
-  }
-
-  const data = event.data ?? {};
-  const eventType = event.event ?? event["event.type"] ?? "";
-
-  if (eventType === "charge.completed") {
-    const meta = data.meta ?? data.metadata;
-    const userEmail =
-      parseUserEmailFromMetadata(meta) ??
-      (typeof data.customer === "object" &&
-      data.customer &&
-      typeof (data.customer as Record<string, unknown>).email === "string"
-        ? ((data.customer as Record<string, unknown>).email as string)
-        : null);
-    const plan = parsePlanFromMetadata(meta);
-    const status = data.status;
-
-    if (userEmail && plan && status === "successful") {
-      await fulfillPaidPlan(userEmail, plan, {
-        flutterwaveSubscriptionId:
-          typeof data.id === "string" || typeof data.id === "number"
-            ? String(data.id)
-            : null,
-      });
-    }
-  }
-
-  res.json({ received: true });
+  return handlePaystackBillingWebhook(req, res);
 }
 
 export function registerPaystackWebhook(app: import("express").Express): void {
@@ -590,7 +487,7 @@ export function registerPaystackWebhook(app: import("express").Express): void {
     webhookLimiter,
     raw({ type: "application/json" }),
     (req, res, next) => {
-      handlePaystackWebhook(req, res).catch(next);
+      handlePaystackBillingWebhook(req, res).catch(next);
     }
   );
 }
@@ -603,15 +500,14 @@ export function registerPaystackBillingWebhook(
     webhookLimiter,
     raw({ type: "application/json" }),
     (req, res, next) => {
-      handlePaystackWebhook(req, res).catch(next);
+      handlePaystackBillingWebhook(req, res).catch(next);
     }
   );
 }
 
-export function registerFlutterwaveWebhook(app: import("express").Express): void {
-  app.post("/webhooks/flutterwave", webhookLimiter, (req, res, next) => {
-    handleFlutterwaveWebhook(req, res).catch(next);
-  });
+/** @deprecated Flutterwave retained for legacy webhooks only. */
+export function registerFlutterwaveWebhook(_app: import("express").Express): void {
+  // No-op: billing uses Paystack only.
 }
 
 export default apiRouter;

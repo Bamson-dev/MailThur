@@ -29,9 +29,8 @@ export function appendTrackingPixel(body: string, sendLogId: string): string {
   return `<html><body>${escaped}${pixel}${footer}</body></html>`;
 }
 
-/** MailThur trial branding appended to outgoing campaign emails. */
-export const MAILTHUR_TRIAL_BRANDING =
-  "Sent with MailThur — Upgrade at https://mailthur.com";
+/** MailThur trial branding appended after the unsubscribe line. */
+export const MAILTHUR_TRIAL_BRANDING = "Sent via MailThur | mailthur.com";
 
 export function appendTrialBranding(body: string): string {
   if (body.includes(MAILTHUR_TRIAL_BRANDING)) {
