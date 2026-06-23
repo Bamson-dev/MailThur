@@ -1,14 +1,35 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { corsOrigins } from "./config/env";
-import { globalRateLimiter } from "./middleware/rateLimit";
+import {
+  authenticatedApiRateLimiter,
+  globalRateLimiter,
+} from "./middleware/rateLimit";
 import { errorHandler } from "./middleware/errorHandler";
 import healthRoutes from "./api/health.routes";
 import exampleRoutes from "./api/example.routes";
 import waitlistRoutes from "./api/waitlist.routes";
+import authRouter from "./api/auth-router";
+import campaignsRouter from "./api/campaigns-router";
+import analyticsRouter from "./api/analytics-router";
+import billingRouter, {
+  registerPaystackWebhook,
+  registerPaystackBillingWebhook,
+  registerFlutterwaveWebhook,
+} from "./api/billing-router";
+import trackRouter from "./api/track-router";
+import webhooksRouter from "./api/webhooks-router";
+import unsubscribeRouter from "./api/unsubscribe-router";
+import activityRouter from "./api/activity-router";
+import dashboardRouter from "./api/dashboard-router";
+import contactsRouter from "./api/contacts-router";
+import statsRouter from "./api/stats-router";
+import toolsRouter from "./api/tools-router";
 import { logger } from "./utils/logger";
 import { env } from "./config/env";
+import { startQueueSchedulers } from "./queue";
 
 const app = express();
 
@@ -56,13 +77,35 @@ app.use(
   })
 );
 
-app.use(express.json());
+registerPaystackWebhook(app);
+registerPaystackBillingWebhook(app);
 
-// Global rate limiting — every route is limited by default
+app.use(express.json());
+app.use(cookieParser());
+
+registerFlutterwaveWebhook(app);
+
+// Global rate limiting — public routes only (/api uses higher authenticated cap)
 app.use(globalRateLimiter);
+
+// Public API routes (own rate limits; mounted before authenticated cap)
+app.use("/api/stats", statsRouter);
+app.use("/api/tools", toolsRouter);
+
+app.use("/api", authenticatedApiRateLimiter);
 
 // Routes
 app.use(healthRoutes);
+app.use(authRouter);
+app.use("/track", trackRouter);
+app.use("/unsubscribe", unsubscribeRouter);
+app.use("/webhooks", webhooksRouter);
+app.use("/api", campaignsRouter);
+app.use("/api", analyticsRouter);
+app.use("/api", billingRouter);
+app.use("/api", activityRouter);
+app.use("/api", dashboardRouter);
+app.use("/api", contactsRouter);
 app.use("/api", exampleRoutes);
 app.use("/api", waitlistRoutes);
 
@@ -74,6 +117,10 @@ app.listen(env.PORT, env.HOST, () => {
     host: env.HOST,
     port: env.PORT,
     nodeEnv: env.NODE_ENV,
+  });
+
+  startQueueSchedulers().catch((error) => {
+    logger.error("Failed to start queue schedulers", error);
   });
 });
 

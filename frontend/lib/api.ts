@@ -9,6 +9,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Thrown when the API returns 403 due to plan or usage limits. */
+export class LimitReachedError extends ApiError {
+  constructor(message: string) {
+    super(message);
+    this.name = "LimitReachedError";
+  }
+}
+
+export function isLimitReachedError(error: unknown): error is LimitReachedError {
+  return error instanceof LimitReachedError;
+}
+
 const GENERIC_ERROR_MESSAGE =
   "Something went wrong. Please try again later.";
 
@@ -32,13 +44,34 @@ export async function apiFetch<T>(
     const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
+      let message = userMessage ?? GENERIC_ERROR_MESSAGE;
+
+      try {
+        const body = (await response.json()) as {
+          message?: string;
+          error?: string;
+        };
+        if (body.message) {
+          message = body.message;
+        } else if (body.error) {
+          message = body.error;
+        }
+      } catch {
+        // Non-JSON error body — keep generic message.
+      }
+
       if (process.env.NODE_ENV === "development") {
         console.error(
           `API request failed: ${response.status} ${response.statusText}`,
           { url }
         );
       }
-      throw new ApiError(userMessage ?? GENERIC_ERROR_MESSAGE);
+
+      if (response.status === 403) {
+        throw new LimitReachedError(message);
+      }
+
+      throw new ApiError(message);
     }
 
     return (await response.json()) as T;

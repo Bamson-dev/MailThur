@@ -11,6 +11,23 @@ function emptyToUndefined(value: unknown): unknown {
   return value;
 }
 
+/** Trim whitespace and strip accidental surrounding quotes from env values. */
+function sanitizeEnvString(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+}
+
 const envSchema = z.object({
   PORT: z.preprocess(
     emptyToUndefined,
@@ -41,11 +58,52 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.preprocess(emptyToUndefined, z.string().min(1)),
   GOOGLE_CLIENT_SECRET: z.preprocess(emptyToUndefined, z.string().min(1)),
   GOOGLE_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url()),
-  // Not used on main yet — optional so missing value does not block startup.
+  SESSION_SECRET: z.preprocess(emptyToUndefined, z.string().min(32)),
+  COOKIE_DOMAIN: z.preprocess(emptyToUndefined, z.string().optional()),
+  // Redis is not wired yet — optional so missing value does not block startup.
   REDIS_URL: z.preprocess(
     emptyToUndefined,
     z.string().min(1).default("redis://localhost:6379")
   ),
+  PAYSTACK_SECRET_KEY: z.preprocess(
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
+    z.string().min(1).default("sk_test_mailthur_dev_placeholder")
+  ),
+  PAYSTACK_PUBLIC_KEY: z.preprocess(
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
+    z.string().min(1).default("pk_test_mailthur_dev_placeholder")
+  ),
+  PAYSTACK_WEBHOOK_SECRET: z.preprocess(
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
+    z.string().min(1).optional()
+  ),
+  PAYSTACK_STARTER_PLAN: z.preprocess(
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
+    z.string().min(1).optional()
+  ),
+  PAYSTACK_GROWTH_PLAN: z.preprocess(
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
+    z.string().min(1).optional()
+  ),
+  PAYSTACK_AGENCY_PLAN: z.preprocess(
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
+    z.string().min(1).optional()
+  ),
+  FLUTTERWAVE_SECRET_KEY: z.preprocess(
+    emptyToUndefined,
+    z.string().min(1).default("FLWSECK_TEST-mailthur_dev_placeholder")
+  ),
+  FLUTTERWAVE_PUBLIC_KEY: z.preprocess(
+    emptyToUndefined,
+    z.string().min(1).default("FLWPUBK_TEST-mailthur_dev_placeholder")
+  ),
+  /** Public backend URL for unsubscribe links in emails (e.g. https://backend.mailthur.com) */
+  PUBLIC_BACKEND_URL: z.preprocess(
+    emptyToUndefined,
+    z.string().url().default("https://staging-backend.mailthur.com")
+  ),
+  /** Base URL for open-tracking pixel (defaults to PUBLIC_BACKEND_URL) */
+  TRACKING_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;
