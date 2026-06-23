@@ -129,8 +129,12 @@ async function readPaystackResponse(
   return { bodyText, payload };
 }
 
-async function verifyPaystackPlanCode(planCode: string): Promise<
-  | { ok: true }
+interface PaystackPlanPayload extends PaystackApiPayload {
+  data?: { amount?: number; plan_code?: string; name?: string };
+}
+
+async function fetchPaystackPlan(planCode: string): Promise<
+  | { ok: true; amount: number | null }
   | { ok: false; httpStatus: number; paystackStatus: number; body: string; message: string }
 > {
   let response: globalThis.Response;
@@ -160,7 +164,8 @@ async function verifyPaystackPlanCode(planCode: string): Promise<
   }
 
   const { bodyText, payload } = await readPaystackResponse(response);
-  if (!response.ok || !payload.status) {
+  const planPayload = payload as PaystackPlanPayload;
+  if (!response.ok || !payload.status || !planPayload.data) {
     logger.error("Paystack plan lookup failed", undefined, {
       planCode,
       paystackStatus: response.status,
@@ -180,19 +185,24 @@ async function verifyPaystackPlanCode(planCode: string): Promise<
     };
   }
 
-  return { ok: true };
+  return {
+    ok: true,
+    amount:
+      typeof planPayload.data.amount === "number" ? planPayload.data.amount : null,
+  };
 }
 
 async function initializePaystackCheckout(input: {
   email: string;
   plan: PaidPlanId;
   planCode: string;
+  planAmount: number | null;
 }): Promise<
   | { ok: true; authorizationUrl: string; reference: string | null }
   | { ok: false; httpStatus: number; paystackStatus: number; body: string; message: string }
 > {
   const callbackUrl = `${env.FRONTEND_URL}/dashboard/billing?payment=success`;
-  const requestBody = {
+  const requestBody: Record<string, unknown> = {
     email: input.email,
     plan: input.planCode,
     callback_url: callbackUrl,
@@ -202,6 +212,10 @@ async function initializePaystackCheckout(input: {
       user_email: input.email,
     },
   };
+
+  if (input.planAmount != null) {
+    requestBody.amount = input.planAmount;
+  }
 
   let response: globalThis.Response;
   try {
@@ -386,9 +400,9 @@ apiRouter.post(
         return;
       }
 
-      const planCheck = await verifyPaystackPlanCode(planCode);
-      if (!planCheck.ok) {
-        res.status(planCheck.httpStatus).json({ error: planCheck.message });
+      const planFetch = await fetchPaystackPlan(planCode);
+      if (!planFetch.ok) {
+        res.status(planFetch.httpStatus).json({ error: planFetch.message });
         return;
       }
 
@@ -396,6 +410,7 @@ apiRouter.post(
         email: userEmail,
         plan,
         planCode,
+        planAmount: planFetch.amount,
       });
 
       if (!checkout.ok) {

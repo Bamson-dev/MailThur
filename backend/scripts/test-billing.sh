@@ -27,7 +27,12 @@ check_json() {
   local name="$1"
   local json="$2"
   local python_expr="$3"
-  if printf '%s' "$json" | python3 -c "$python_expr"; then
+  if ! printf '%s' "$json" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+    echo "FAIL: $name (response is not valid JSON)"
+    fail=$((fail + 1))
+    return
+  fi
+  if printf '%s' "$json" | python3 -c "$python_expr" 2>/dev/null; then
     echo "PASS: $name"
     pass=$((pass + 1))
   else

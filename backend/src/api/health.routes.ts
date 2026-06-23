@@ -7,6 +7,11 @@ router.get("/health", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),
+    build:
+      process.env.SOURCE_COMMIT ??
+      process.env.GIT_COMMIT ??
+      process.env.COOLIFY_BRANCH ??
+      null,
   });
 });
 
