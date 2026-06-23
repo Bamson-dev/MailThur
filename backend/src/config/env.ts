@@ -11,6 +11,23 @@ function emptyToUndefined(value: unknown): unknown {
   return value;
 }
 
+/** Trim whitespace and strip accidental surrounding quotes from env values. */
+function sanitizeEnvString(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+}
+
 const envSchema = z.object({
   PORT: z.preprocess(
     emptyToUndefined,
@@ -49,17 +66,29 @@ const envSchema = z.object({
     z.string().min(1).default("redis://localhost:6379")
   ),
   PAYSTACK_SECRET_KEY: z.preprocess(
-    emptyToUndefined,
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
     z.string().min(1).default("sk_test_mailthur_dev_placeholder")
   ),
   PAYSTACK_PUBLIC_KEY: z.preprocess(
-    emptyToUndefined,
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
     z.string().min(1).default("pk_test_mailthur_dev_placeholder")
   ),
-  PAYSTACK_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
-  PAYSTACK_STARTER_PLAN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
-  PAYSTACK_GROWTH_PLAN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
-  PAYSTACK_AGENCY_PLAN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  PAYSTACK_WEBHOOK_SECRET: z.preprocess(
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
+    z.string().min(1).optional()
+  ),
+  PAYSTACK_STARTER_PLAN: z.preprocess(
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
+    z.string().min(1).optional()
+  ),
+  PAYSTACK_GROWTH_PLAN: z.preprocess(
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
+    z.string().min(1).optional()
+  ),
+  PAYSTACK_AGENCY_PLAN: z.preprocess(
+    (value) => sanitizeEnvString(emptyToUndefined(value)),
+    z.string().min(1).optional()
+  ),
   FLUTTERWAVE_SECRET_KEY: z.preprocess(
     emptyToUndefined,
     z.string().min(1).default("FLWSECK_TEST-mailthur_dev_placeholder")

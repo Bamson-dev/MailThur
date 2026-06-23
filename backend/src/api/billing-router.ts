@@ -68,6 +68,134 @@ function paystackPlanCode(plan: PaidPlanId): string {
   return code;
 }
 
+function paystackSecretKeyMode(): "test" | "live" | "unknown" | "placeholder" {
+  const key = env.PAYSTACK_SECRET_KEY;
+  if (key === "sk_test_mailthur_dev_placeholder") {
+    return "placeholder";
+  }
+  if (key.startsWith("sk_test_")) {
+    return "test";
+  }
+  if (key.startsWith("sk_live_")) {
+    return "live";
+  }
+  return "unknown";
+}
+
+function paystackPlanConfigSnapshot(): Record<string, string | undefined> {
+  return {
+    starter: env.PAYSTACK_STARTER_PLAN,
+    growth: env.PAYSTACK_GROWTH_PLAN,
+    agency: env.PAYSTACK_AGENCY_PLAN,
+  };
+}
+
+interface PaystackInitializePayload {
+  status?: boolean;
+  message?: string;
+  data?: { authorization_url?: string; reference?: string };
+}
+
+async function initializePaystackCheckout(input: {
+  email: string;
+  plan: PaidPlanId;
+  planCode: string;
+}): Promise<
+  | { ok: true; authorizationUrl: string; reference: string | null }
+  | { ok: false; httpStatus: number; paystackStatus: number; body: string; message: string }
+> {
+  const callbackUrl = `${env.FRONTEND_URL}/dashboard/billing?payment=success`;
+  const requestBody = {
+    email: input.email,
+    plan: input.planCode,
+    callback_url: callbackUrl,
+    metadata: {
+      product: "mailthur",
+      plan: input.plan,
+      user_email: input.email,
+    },
+  };
+
+  let response: globalThis.Response;
+  try {
+    response = await fetch("https://api.paystack.co/transaction/initialize", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(25_000),
+    });
+  } catch (error) {
+    logger.error("Paystack checkout request failed", error, {
+      plan: input.plan,
+      planCode: input.planCode,
+      keyMode: paystackSecretKeyMode(),
+      planCodes: paystackPlanConfigSnapshot(),
+      callbackUrl,
+    });
+    return {
+      ok: false,
+      httpStatus: 503,
+      paystackStatus: 0,
+      body: error instanceof Error ? error.message : String(error),
+      message: "Unable to reach Paystack.",
+    };
+  }
+
+  const bodyText = await response.text();
+  let payload: PaystackInitializePayload = {};
+
+  if (bodyText.trim()) {
+    try {
+      payload = JSON.parse(bodyText) as PaystackInitializePayload;
+    } catch (error) {
+      logger.error("Paystack checkout returned non-JSON body", error, {
+        plan: input.plan,
+        planCode: input.planCode,
+        paystackStatus: response.status,
+        responseBody: bodyText,
+        keyMode: paystackSecretKeyMode(),
+        planCodes: paystackPlanConfigSnapshot(),
+      });
+      return {
+        ok: false,
+        httpStatus: 424,
+        paystackStatus: response.status,
+        body: bodyText,
+        message: "Paystack returned an invalid response.",
+      };
+    }
+  }
+
+  if (!response.ok || !payload.status || !payload.data?.authorization_url) {
+    logger.error("Paystack checkout initialization failed", undefined, {
+      plan: input.plan,
+      planCode: input.planCode,
+      paystackStatus: response.status,
+      paystackMessage: payload.message ?? null,
+      responseBody: bodyText,
+      keyMode: paystackSecretKeyMode(),
+      planCodes: paystackPlanConfigSnapshot(),
+      callbackUrl,
+    });
+      return {
+        ok: false,
+        httpStatus: 424,
+        paystackStatus: response.status,
+        body: bodyText,
+        message: payload.message ?? "Payment initialization failed.",
+      };
+  }
+
+  return {
+    ok: true,
+    authorizationUrl: payload.data.authorization_url,
+    reference: payload.data.reference ?? null,
+  };
+}
+
 function parsePlanFromMetadata(metadata: unknown): PaidPlanId | null {
   if (!metadata || typeof metadata !== "object") {
     return null;
@@ -146,49 +274,42 @@ apiRouter.post(
       try {
         planCode = paystackPlanCode(plan);
       } catch {
-        logger.error("Paystack plan code missing", undefined, { plan });
+        logger.error("Paystack plan code missing", undefined, {
+          plan,
+          planCodes: paystackPlanConfigSnapshot(),
+        });
         res.status(503).json({ error: "Billing is not configured." });
         return;
       }
 
-      const response = await fetch(
-        "https://api.paystack.co/transaction/initialize",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: userEmail,
-            plan: planCode,
-            callback_url: `${env.FRONTEND_URL}/dashboard/billing?payment=success`,
-            metadata: {
-              product: "mailthur",
-              plan,
-              user_email: userEmail,
-            },
-          }),
-        }
-      );
-
-      const payload = (await response.json()) as {
-        status?: boolean;
-        message?: string;
-        data?: { authorization_url?: string; reference?: string };
-      };
-
-      if (!response.ok || !payload.status || !payload.data?.authorization_url) {
-        logger.error("Paystack checkout initialization failed", undefined, {
-          status: response.status,
+      const keyMode = paystackSecretKeyMode();
+      if (keyMode === "placeholder" || keyMode === "unknown") {
+        logger.error("Paystack secret key is not configured", undefined, {
+          plan,
+          planCode,
+          keyMode,
+          planCodes: paystackPlanConfigSnapshot(),
         });
-        res.status(502).json({ error: "Payment initialization failed." });
+        res.status(503).json({ error: "Billing is not configured." });
+        return;
+      }
+
+      const checkout = await initializePaystackCheckout({
+        email: userEmail,
+        plan,
+        planCode,
+      });
+
+      if (!checkout.ok) {
+        res.status(checkout.httpStatus).json({
+          error: checkout.message,
+        });
         return;
       }
 
       res.json({
-        authorization_url: payload.data.authorization_url,
-        reference: payload.data.reference ?? null,
+        authorization_url: checkout.authorizationUrl,
+        reference: checkout.reference,
       });
     } catch (error) {
       next(error);

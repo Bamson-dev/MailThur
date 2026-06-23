@@ -23,6 +23,19 @@ check() {
   fi
 }
 
+check_json() {
+  local name="$1"
+  local json="$2"
+  local python_expr="$3"
+  if printf '%s' "$json" | python3 -c "$python_expr"; then
+    echo "PASS: $name"
+    pass=$((pass + 1))
+  else
+    echo "FAIL: $name"
+    fail=$((fail + 1))
+  fi
+}
+
 SESSION=$(curl -sf -X POST "$API_URL/auth/session" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"$TEST_EMAIL\"}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
@@ -38,19 +51,19 @@ echo "--- 1. Trial subscription auto-created via session ---"
 STATUS=$(curl -sf "$API_URL/api/billing/status" -H "$AUTH")
 echo "$STATUS" | python3 -m json.tool
 
-check "status returns plan=trial" echo "$STATUS" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('plan')=='trial' else 1)"
-check "trial_emails_sent is 0" echo "$STATUS" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('trial_emails_sent')==0 else 1)"
-check "trial_emails_remaining is 500" echo "$STATUS" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('trial_emails_remaining')==500 else 1)"
-check "trial_days_remaining >= 2" echo "$STATUS" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('trial_days_remaining',0)>=2 else 1)"
+check_json "status returns plan=trial" "$STATUS" "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('plan')=='trial' else 1)"
+check_json "trial_emails_sent is 0" "$STATUS" "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('trial_emails_sent')==0 else 1)"
+check_json "trial_emails_remaining is 500" "$STATUS" "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('trial_emails_remaining')==500 else 1)"
+check_json "trial_days_remaining >= 2" "$STATUS" "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('trial_days_remaining',0)>=2 else 1)"
 
 echo
 echo "--- 2. Paystack checkout (starter) ---"
-CHECKOUT=$(curl -sf -X POST "$API_URL/api/billing/checkout" \
+CHECKOUT=$(curl -s -X POST "$API_URL/api/billing/checkout" \
   -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"plan":"starter"}' || echo '{"error":"checkout failed"}')
+  -d '{"plan":"starter"}')
 echo "$CHECKOUT" | python3 -m json.tool
 
-check "checkout returns authorization_url" echo "$CHECKOUT" | python3 -c "import sys,json; d=json.load(sys.stdin); u=d.get('authorization_url',''); exit(0 if 'paystack.com' in u else 1)"
+check_json "checkout returns authorization_url" "$CHECKOUT" "import sys,json; d=json.load(sys.stdin); u=d.get('authorization_url',''); exit(0 if 'paystack.com' in u else 1)"
 
 echo
 echo "--- 3. Billing routes exist ---"
