@@ -68,10 +68,18 @@ function paystackPlanCode(plan: PaidPlanId): string {
   return code;
 }
 
-function paystackSecretKeyMode(): "test" | "live" | "unknown" | "placeholder" {
+function paystackSecretKeyMode():
+  | "test"
+  | "live"
+  | "public_key"
+  | "unknown"
+  | "placeholder" {
   const key = env.PAYSTACK_SECRET_KEY;
   if (key === "sk_test_mailthur_dev_placeholder") {
     return "placeholder";
+  }
+  if (key.startsWith("pk_test_") || key.startsWith("pk_live_")) {
+    return "public_key";
   }
   if (key.startsWith("sk_test_")) {
     return "test";
@@ -94,6 +102,85 @@ interface PaystackInitializePayload {
   status?: boolean;
   message?: string;
   data?: { authorization_url?: string; reference?: string };
+}
+
+interface PaystackApiPayload {
+  status?: boolean;
+  message?: string;
+}
+
+async function readPaystackResponse(
+  response: globalThis.Response
+): Promise<{ bodyText: string; payload: PaystackApiPayload }> {
+  const bodyText = await response.text();
+  let payload: PaystackApiPayload = {};
+
+  if (bodyText.trim()) {
+    try {
+      payload = JSON.parse(bodyText) as PaystackApiPayload;
+    } catch (error) {
+      logger.error("Paystack returned non-JSON body", error, {
+        paystackStatus: response.status,
+        responseBody: bodyText,
+      });
+    }
+  }
+
+  return { bodyText, payload };
+}
+
+async function verifyPaystackPlanCode(planCode: string): Promise<
+  | { ok: true }
+  | { ok: false; httpStatus: number; paystackStatus: number; body: string; message: string }
+> {
+  let response: globalThis.Response;
+  try {
+    response = await fetch(
+      `https://api.paystack.co/plan/${encodeURIComponent(planCode)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+        },
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+  } catch (error) {
+    logger.error("Paystack plan lookup request failed", error, {
+      planCode,
+      keyMode: paystackSecretKeyMode(),
+      planCodes: paystackPlanConfigSnapshot(),
+    });
+    return {
+      ok: false,
+      httpStatus: 503,
+      paystackStatus: 0,
+      body: error instanceof Error ? error.message : String(error),
+      message: "Unable to reach Paystack.",
+    };
+  }
+
+  const { bodyText, payload } = await readPaystackResponse(response);
+  if (!response.ok || !payload.status) {
+    logger.error("Paystack plan lookup failed", undefined, {
+      planCode,
+      paystackStatus: response.status,
+      paystackMessage: payload.message ?? null,
+      responseBody: bodyText,
+      keyMode: paystackSecretKeyMode(),
+      planCodes: paystackPlanConfigSnapshot(),
+    });
+    return {
+      ok: false,
+      httpStatus: 424,
+      paystackStatus: response.status,
+      body: bodyText,
+      message:
+        payload.message ??
+        "Paystack plan code was not found. Check test vs live mode and plan env vars.",
+    };
+  }
+
+  return { ok: true };
 }
 
 async function initializePaystackCheckout(input: {
@@ -144,29 +231,25 @@ async function initializePaystackCheckout(input: {
     };
   }
 
-  const bodyText = await response.text();
-  let payload: PaystackInitializePayload = {};
+  const { bodyText, payload: parsedPayload } = await readPaystackResponse(response);
+  const payload = parsedPayload as PaystackInitializePayload;
 
-  if (bodyText.trim()) {
-    try {
-      payload = JSON.parse(bodyText) as PaystackInitializePayload;
-    } catch (error) {
-      logger.error("Paystack checkout returned non-JSON body", error, {
-        plan: input.plan,
-        planCode: input.planCode,
-        paystackStatus: response.status,
-        responseBody: bodyText,
-        keyMode: paystackSecretKeyMode(),
-        planCodes: paystackPlanConfigSnapshot(),
-      });
-      return {
-        ok: false,
-        httpStatus: 424,
-        paystackStatus: response.status,
-        body: bodyText,
-        message: "Paystack returned an invalid response.",
-      };
-    }
+  if (!bodyText.trim() || (!payload.status && !payload.message && !response.ok)) {
+    logger.error("Paystack checkout returned non-JSON body", undefined, {
+      plan: input.plan,
+      planCode: input.planCode,
+      paystackStatus: response.status,
+      responseBody: bodyText,
+      keyMode: paystackSecretKeyMode(),
+      planCodes: paystackPlanConfigSnapshot(),
+    });
+    return {
+      ok: false,
+      httpStatus: 424,
+      paystackStatus: response.status,
+      body: bodyText,
+      message: "Paystack returned an invalid response.",
+    };
   }
 
   if (!response.ok || !payload.status || !payload.data?.authorization_url) {
@@ -283,14 +366,29 @@ apiRouter.post(
       }
 
       const keyMode = paystackSecretKeyMode();
-      if (keyMode === "placeholder" || keyMode === "unknown") {
+      if (
+        keyMode === "placeholder" ||
+        keyMode === "unknown" ||
+        keyMode === "public_key"
+      ) {
         logger.error("Paystack secret key is not configured", undefined, {
           plan,
           planCode,
           keyMode,
           planCodes: paystackPlanConfigSnapshot(),
         });
-        res.status(503).json({ error: "Billing is not configured." });
+        res.status(503).json({
+          error:
+            keyMode === "public_key"
+              ? "Billing is misconfigured: PAYSTACK_SECRET_KEY must be a secret key (sk_test_ or sk_live_), not a public key."
+              : "Billing is not configured.",
+        });
+        return;
+      }
+
+      const planCheck = await verifyPaystackPlanCode(planCode);
+      if (!planCheck.ok) {
+        res.status(planCheck.httpStatus).json({ error: planCheck.message });
         return;
       }
 

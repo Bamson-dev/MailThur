@@ -58,11 +58,18 @@ check_json "trial_days_remaining >= 2" "$STATUS" "import sys,json; d=json.load(s
 
 echo
 echo "--- 2. Paystack checkout (starter) ---"
-CHECKOUT=$(curl -s -X POST "$API_URL/api/billing/checkout" \
+CHECKOUT_HTTP=$(curl -s -o /tmp/mailthur-checkout.json -w '%{http_code}' -X POST "$API_URL/api/billing/checkout" \
   -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"plan":"starter"}')
-echo "$CHECKOUT" | python3 -m json.tool
+CHECKOUT=$(cat /tmp/mailthur-checkout.json)
+echo "HTTP: $CHECKOUT_HTTP"
+if printf '%s' "$CHECKOUT" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+  printf '%s' "$CHECKOUT" | python3 -m json.tool
+else
+  echo "$CHECKOUT"
+fi
 
+check "checkout HTTP is 200" test "$CHECKOUT_HTTP" = "200"
 check_json "checkout returns authorization_url" "$CHECKOUT" "import sys,json; d=json.load(sys.stdin); u=d.get('authorization_url',''); exit(0 if 'paystack.com' in u else 1)"
 
 echo
