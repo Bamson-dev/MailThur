@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import ComingSoon from "@/components/ComingSoon";
+import LandingPage from "@/components/public/LandingPage";
 
 export const metadata: Metadata = {
-  title: "MailThur — Launching Soon",
+  title: "MailThur — Cold Email Outreach From Your Own Inbox",
   description:
-    "MailThur is launching soon. Connect your inboxes — we handle the sequencing, rotation, and scheduling.",
+    "Connect your Gmail inbox, build sequences, and track every open and reply. MailThur handles follow-ups automatically so you can focus on closing.",
 };
 
 export default function Home() {
-  return <ComingSoon />;
+  return <LandingPage />;
 }

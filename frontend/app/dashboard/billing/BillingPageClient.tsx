@@ -6,7 +6,10 @@ import { Check, Clock } from "lucide-react";
 import AuthGate from "@/components/dashboard/AuthGate";
 import Card, { SectionHeading } from "@/components/dashboard/Card";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import PlanCards, { ComparisonTable } from "@/components/dashboard/PlanCards";
+import PlanCards, {
+  ComparisonTable,
+  TrustBadges,
+} from "@/components/dashboard/PlanCards";
 import { Skeleton } from "@/components/dashboard/Skeleton";
 import { useToast } from "@/components/dashboard/ToastProvider";
 import {
@@ -18,7 +21,7 @@ import {
   verifyPayment,
   UpgradePlan,
 } from "@/lib/billing";
-import { TRIAL_EMAIL_LIMIT, TRUST_BADGES } from "@/lib/billing-plans";
+import { TRIAL_EMAIL_LIMIT } from "@/lib/billing-plans";
 import { getUserErrorMessage } from "@/lib/api";
 import { capBarColor } from "@/lib/utils";
 
@@ -240,16 +243,8 @@ export default function BillingPageClient() {
         onCheckout={handleUpgrade}
       />
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-3">
-        {TRUST_BADGES.map((badge) => (
-          <div
-            key={badge}
-            className="flex items-center gap-2 rounded-xl border border-border-subtle bg-surface p-4 text-sm text-body"
-          >
-            <Check className="h-4 w-4 shrink-0 text-success" />
-            {badge}
-          </div>
-        ))}
+      <div className="mt-8">
+        <TrustBadges />
       </div>
 
       <Card className="mt-8">

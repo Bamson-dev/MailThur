@@ -20,6 +20,7 @@ import {
   signOut,
 } from "@/lib/session";
 import { Skeleton } from "@/components/dashboard/Skeleton";
+import DashboardFooter from "@/components/dashboard/DashboardFooter";
 
 export default function DashboardLayout({
   children,
@@ -146,6 +147,7 @@ export default function DashboardLayout({
 
           <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
             <PageTransition>{children}</PageTransition>
+            <DashboardFooter />
           </div>
         </main>
 

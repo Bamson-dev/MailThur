@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { Check, Sparkles, X } from "lucide-react";
 import {
   COMPETITOR_COMPARISON,
   ENTERPRISE_WHATSAPP_URL,
   PAID_PLAN_CARDS,
   PlanCardData,
+  TRUST_BADGES,
 } from "@/lib/billing-plans";
 import type { PlanId, UpgradePlan } from "@/lib/billing";
 
@@ -13,6 +15,7 @@ interface PlanCardsProps {
   currentPlan?: PlanId;
   loadingPlan?: UpgradePlan | null;
   onCheckout?: (plan: UpgradePlan) => void;
+  signupHref?: string;
   compact?: boolean;
 }
 
@@ -25,11 +28,13 @@ function PlanCardButton({
   isCurrent,
   loadingPlan,
   onCheckout,
+  signupHref,
 }: {
   plan: PlanCardData;
   isCurrent: boolean;
   loadingPlan?: UpgradePlan | null;
   onCheckout?: (plan: UpgradePlan) => void;
+  signupHref?: string;
 }) {
   if (plan.isEnterprise) {
     return (
@@ -49,6 +54,17 @@ function PlanCardButton({
       <span className="mt-5 block rounded-lg border border-accent/40 bg-accent/10 py-2.5 text-center text-sm font-semibold text-accent">
         Current plan
       </span>
+    );
+  }
+
+  if (signupHref && isUpgradePlan(plan.id)) {
+    return (
+      <Link
+        href={signupHref}
+        className="mt-5 block rounded-lg bg-accent px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-accent/90"
+      >
+        Get Started
+      </Link>
     );
   }
 
@@ -72,6 +88,7 @@ export default function PlanCards({
   currentPlan,
   loadingPlan,
   onCheckout,
+  signupHref,
   compact = false,
 }: PlanCardsProps) {
   return (
@@ -129,10 +146,27 @@ export default function PlanCards({
               isCurrent={isCurrent}
               loadingPlan={loadingPlan}
               onCheckout={onCheckout}
+              signupHref={signupHref}
             />
           </div>
         );
       })}
+    </div>
+  );
+}
+
+export function TrustBadges() {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      {TRUST_BADGES.map((badge) => (
+        <div
+          key={badge}
+          className="flex items-center gap-2 rounded-xl border border-border-subtle bg-surface p-4 text-sm text-body"
+        >
+          <Check className="h-4 w-4 shrink-0 text-success" />
+          {badge}
+        </div>
+      ))}
     </div>
   );
 }
