@@ -92,15 +92,14 @@ export default function SettingsPage() {
     }
   }
 
-  const trialLimit = billing?.trial_emails_limit ?? TRIAL_EMAIL_LIMIT;
-  const trialDaysLimit = billing?.trial_days_limit ?? TRIAL_DAY_LIMIT;
-  const trialEmailsUsed =
-    billing?.trial_emails_limit && billing.trial_emails_remaining != null
-      ? trialLimit - billing.trial_emails_remaining
-      : 0;
-  const trialEmailsPct = trialLimit ? (trialEmailsUsed / trialLimit) * 100 : 0;
+  const trialEmailsUsed = billing?.trial_emails_sent ?? 0;
+  const trialEmailsPct = (trialEmailsUsed / TRIAL_EMAIL_LIMIT) * 100;
   const trialDaysPct = billing?.trial_days_remaining
-    ? Math.max(0, ((trialDaysLimit - billing.trial_days_remaining) / trialDaysLimit) * 100)
+    ? Math.max(
+        0,
+        ((TRIAL_DAY_LIMIT - billing.trial_days_remaining) / TRIAL_DAY_LIMIT) *
+          100
+      )
     : 0;
 
   if (pageLoading) {
@@ -152,7 +151,7 @@ export default function SettingsPage() {
                 <div className="flex justify-between text-xs text-muted">
                   <span>Trial emails used</span>
                   <span>
-                    {trialEmailsUsed}/{trialLimit}
+                    {trialEmailsUsed}/{TRIAL_EMAIL_LIMIT}
                   </span>
                 </div>
                 <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-border-subtle">
@@ -165,7 +164,7 @@ export default function SettingsPage() {
               <div>
                 <div className="flex justify-between text-xs text-muted">
                   <span>Trial period</span>
-                  <span>{billing.trial_days_remaining ?? 0} of {trialDaysLimit} days left</span>
+                  <span>{billing.trial_days_remaining ?? 0} of {TRIAL_DAY_LIMIT} days left</span>
                 </div>
                 <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-border-subtle">
                   <div

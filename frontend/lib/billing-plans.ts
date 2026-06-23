@@ -3,145 +3,142 @@ import type { PlanId, UpgradePlan } from "./billing";
 export const TRIAL_EMAIL_LIMIT = 500;
 export const TRIAL_DAY_LIMIT = 3;
 
-export interface PlanCard {
-  id: PlanId;
+export interface PlanCardData {
+  id: PlanId | "enterprise";
   name: string;
-  price: string;
-  priceNote?: string;
-  description: string;
-  inboxes: string;
-  monthlyEmails: string;
+  price?: string;
+  headline: string;
   features: string[];
+  valueLine?: string;
   highlighted?: boolean;
+  isEnterprise?: boolean;
+  whatsappMessage?: string;
 }
 
-export const PLAN_CARDS: PlanCard[] = [
-  {
-    id: "trial",
-    name: "Free Trial",
-    price: "$0",
-    priceNote: "3 days",
-    description: "Try MailThur with real campaigns before you commit.",
-    inboxes: "1 inbox",
-    monthlyEmails: "500 emails total",
-    features: [
-      "Full campaign builder",
-      "Open & reply tracking",
-      "CSV contact import",
-      "MailThur branding on emails",
-    ],
-  },
+export const PAID_PLAN_CARDS: PlanCardData[] = [
   {
     id: "starter",
     name: "Starter",
-    price: "$19",
-    priceNote: "/month",
-    description: "For solo founders sending consistent outreach.",
-    inboxes: "2 inboxes",
-    monthlyEmails: "30,000 emails / month",
+    price: "₦25,000 per month",
+    headline: "Start closing more clients",
     features: [
-      "Everything in trial",
-      "No MailThur branding",
-      "Priority sending queue",
-      "Email support",
+      "Unlimited connected inboxes",
+      "30,000 emails per month",
+      "Full campaign builder with sequences",
+      "Basic analytics and open tracking",
+      "Reply detection",
+      "Unsubscribe handling",
+      "MailThur branding removed",
     ],
-    highlighted: true,
+    valueLine:
+      "At a 3% reply rate, 30,000 emails means 900 potential conversations per month",
   },
   {
     id: "growth",
     name: "Growth",
-    price: "$39",
-    priceNote: "/month",
-    description: "Scale outreach across multiple inboxes and teams.",
-    inboxes: "6 inboxes",
-    monthlyEmails: "Unlimited emails",
+    price: "₦50,000 per month",
+    headline: "Scale without limits",
+    highlighted: true,
     features: [
       "Everything in Starter",
-      "Higher deliverability limits",
-      "Advanced analytics",
-      "Priority support",
+      "Unlimited emails per month",
+      "Advanced analytics and deliverability scoring",
+      "Domain health checker",
+      "Inbox deliverability grade A to F",
+      "Priority email support",
     ],
+    valueLine: "No monthly cap. Send as much as your inboxes allow.",
   },
   {
     id: "agency",
     name: "Agency",
-    price: "$79",
-    priceNote: "/month",
-    description: "Run client campaigns with maximum capacity.",
-    inboxes: "Unlimited inboxes",
-    monthlyEmails: "Unlimited emails",
+    price: "₦75,000 per month",
+    headline: "Run outreach for multiple clients",
     features: [
       "Everything in Growth",
-      "Unlimited inboxes",
-      "Dedicated onboarding",
-      "SLA support",
+      "Unlimited client workspaces",
+      "White label dashboard",
+      "Dedicated support within 24 hours",
+      "Early access to new features",
     ],
-  },
-];
-
-export const COMPARISON_ROWS: Array<{
-  label: string;
-  trial: string;
-  starter: string;
-  growth: string;
-  agency: string;
-}> = [
-  {
-    label: "Connected inboxes",
-    trial: "1",
-    starter: "2",
-    growth: "6",
-    agency: "Unlimited",
+    valueLine:
+      "Manage all your clients from one dashboard without them seeing each other's data.",
   },
   {
-    label: "Monthly email sends",
-    trial: "500 (trial total)",
-    starter: "30,000",
-    growth: "Unlimited",
-    agency: "Unlimited",
-  },
-  {
-    label: "Trial duration",
-    trial: "3 days",
-    starter: "—",
-    growth: "—",
-    agency: "—",
-  },
-  {
-    label: "Open tracking",
-    trial: "✓",
-    starter: "✓",
-    growth: "✓",
-    agency: "✓",
-  },
-  {
-    label: "Reply detection",
-    trial: "✓",
-    starter: "✓",
-    growth: "✓",
-    agency: "✓",
-  },
-  {
-    label: "Remove MailThur branding",
-    trial: "—",
-    starter: "✓",
-    growth: "✓",
-    agency: "✓",
-  },
-  {
-    label: "Support",
-    trial: "Community",
-    starter: "Email",
-    growth: "Priority",
-    agency: "SLA",
+    id: "enterprise",
+    name: "Enterprise",
+    headline: "Need something custom?",
+    isEnterprise: true,
+    features: [
+      "Custom sending limits",
+      "Custom onboarding and setup",
+      "SLA guarantee",
+      "Dedicated account manager",
+      "API access for custom integrations",
+    ],
+    whatsappMessage:
+      "Hi, I am interested in MailThur Enterprise. Please tell me more.",
   },
 ];
 
 export const TRUST_BADGES = [
-  "Paystack & Flutterwave secure checkout",
-  "Cancel anytime from billing settings",
-  "No hidden fees — price shown at checkout",
-  "Gmail-native sending from your inbox",
+  "3-day free trial no card required",
+  "30-day money back guarantee on first payment",
+  "Cancel anytime no questions asked",
+];
+
+export const COMPETITOR_COMPARISON: Array<{
+  feature: string;
+  mailthur: string;
+  instantly: string;
+  smartlead: string;
+  positive?: "mailthur" | "instantly" | "smartlead" | "none";
+}> = [
+  {
+    feature: "Monthly price (NGN equiv. @ ₦1,600/$)",
+    mailthur: "₦25,000",
+    instantly: "₦155,200 (~$97)",
+    smartlead: "₦124,800 (~$78)",
+    positive: "mailthur",
+  },
+  {
+    feature: "Unlimited inboxes",
+    mailthur: "yes",
+    instantly: "yes",
+    smartlead: "yes",
+    positive: "none",
+  },
+  {
+    feature: "Monthly email cap",
+    mailthur: "30,000 (Starter)",
+    instantly: "Unlimited",
+    smartlead: "Unlimited",
+    positive: "none",
+  },
+  {
+    feature: "Free trial available",
+    mailthur: "yes",
+    instantly: "no",
+    smartlead: "no",
+    positive: "mailthur",
+  },
+  {
+    feature: "Money back guarantee",
+    mailthur: "yes",
+    instantly: "no",
+    smartlead: "no",
+    positive: "mailthur",
+  },
+  {
+    feature: "Local NGN pricing",
+    mailthur: "yes",
+    instantly: "no",
+    smartlead: "no",
+    positive: "mailthur",
+  },
 ];
 
 export const UPGRADE_PLAN_IDS: UpgradePlan[] = ["starter", "growth", "agency"];
+
+export const ENTERPRISE_WHATSAPP_URL =
+  "https://wa.me/2349067285890?text=Hi%2C%20I%20am%20interested%20in%20MailThur%20Enterprise.%20Please%20tell%20me%20more.";

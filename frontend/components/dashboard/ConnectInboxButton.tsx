@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { fetchInboxEligibility } from "@/lib/billing";
+import { fetchInboxEligibility, PlanId } from "@/lib/billing";
 import { getConnectInboxUrl } from "@/lib/inboxes";
 import UpgradeModal from "./UpgradeModal";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ export default function ConnectInboxButton({
 }: ConnectInboxButtonProps) {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [eligibility, setEligibility] = useState<{
-    plan: "trial" | "starter" | "growth" | "agency";
+    plan: PlanId;
     max_inboxes: number;
   } | null>(null);
   const [checking, setChecking] = useState(false);

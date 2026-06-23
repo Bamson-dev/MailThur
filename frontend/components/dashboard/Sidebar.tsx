@@ -33,6 +33,7 @@ const PLAN_LABELS: Record<PlanId, string> = {
   starter: "Starter",
   growth: "Growth",
   agency: "Agency",
+  enterprise: "Enterprise",
 };
 
 interface SidebarProps {

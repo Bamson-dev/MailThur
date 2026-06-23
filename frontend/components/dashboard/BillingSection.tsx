@@ -9,6 +9,7 @@ import {
   fetchBillingStatus,
   initiateCheckout,
 } from "@/lib/billing";
+import { TRIAL_EMAIL_LIMIT } from "@/lib/billing-plans";
 import { hasSession } from "@/lib/session";
 import UpgradePrompt from "./UpgradePrompt";
 
@@ -19,6 +20,7 @@ const PLAN_DISPLAY: Record<BillingStatus["plan"], string> = {
   starter: "Starter",
   growth: "Growth",
   agency: "Agency",
+  enterprise: "Enterprise",
 };
 
 export default function BillingSection() {
@@ -76,7 +78,7 @@ export default function BillingSection() {
   }
 
   const showUpgradeButtons =
-    billing?.plan === "trial" || billing?.subscription_active === false;
+    billing?.plan === "trial" || billing?.status !== "active";
 
   return (
     <div className="w-full max-w-2xl">
@@ -112,10 +114,8 @@ export default function BillingSection() {
               <>
                 {typeof billing.trial_emails_remaining === "number" ? (
                   <p className="text-sm text-gray-600">
-                    Trial emails remaining: {billing.trial_emails_remaining}
-                    {typeof billing.trial_emails_limit === "number"
-                      ? ` of ${billing.trial_emails_limit}`
-                      : null}
+                    Trial emails remaining: {billing.trial_emails_remaining} of{" "}
+                    {TRIAL_EMAIL_LIMIT}
                   </p>
                 ) : null}
                 {typeof billing.trial_days_remaining === "number" ? (
