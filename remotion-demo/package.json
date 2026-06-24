@@ -1,0 +1,25 @@
+{
+  "name": "mailthur-oauth-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MailThur Google OAuth verification demo video",
+  "scripts": {
+    "start": "remotion studio",
+    "preview": "remotion studio",
+    "build": "remotion bundle",
+    "render": "remotion render src/index.ts MailThurDemo ../MailThur-Demo.mp4",
+    "render:downloads": "remotion render src/index.ts MailThurDemo /Users/donbamz/Downloads/MailThur-Demo.mp4"
+  },
+  "dependencies": {
+    "@remotion/google-fonts": "^4.0.272",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.272"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.272",
+    "@types/react": "^18.3.18",
+    "@types/web": "^0.0.197",
+    "typescript": "^5.8.3"
+  }
+}
