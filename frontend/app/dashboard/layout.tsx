@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import PageTransition from "@/components/dashboard/PageTransition";
+import OnboardingConnectRedirect from "@/components/dashboard/OnboardingConnectRedirect";
 import { ToastProvider } from "@/components/dashboard/ToastProvider";
 import UpgradeModal from "@/components/dashboard/UpgradeModal";
 import {
@@ -115,6 +116,9 @@ export default function DashboardLayout({
 
   return (
     <ToastProvider>
+      <Suspense fallback={null}>
+        <OnboardingConnectRedirect />
+      </Suspense>
       <div className="min-h-screen bg-content">
         <Sidebar
           userEmail={userEmail}

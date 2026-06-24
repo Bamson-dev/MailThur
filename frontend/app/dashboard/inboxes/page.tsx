@@ -20,6 +20,7 @@ import {
 } from "@/lib/inboxes";
 import { fetchDashboardOverview } from "@/lib/dashboard";
 import { getUserErrorMessage } from "@/lib/api";
+import InboxWarmupProgress from "@/components/dashboard/InboxWarmupProgress";
 import { bounceColor, capBarColor, cn } from "@/lib/utils";
 
 const GRADE_COLORS: Record<string, string> = {
@@ -229,6 +230,8 @@ export default function InboxesPage() {
                     />
                   </div>
                 </div>
+
+                <InboxWarmupProgress dailySendCap={inbox.daily_send_cap} />
 
                 <div className="mt-4 flex items-center gap-1.5">
                   <span className={`h-1.5 w-1.5 rounded-full ${bounce.dot}`} />
