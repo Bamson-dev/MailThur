@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import {
+  BarChart3,
+  Mail,
+  RefreshCw,
+  Shield,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import AnimatedBackground from "./coming-soon/AnimatedBackground";
 import FlipCountdownUnit from "./coming-soon/FlipCountdownUnit";
 import "./coming-soon/coming-soon.css";
@@ -29,6 +37,45 @@ function getTimeRemaining(target: Date): TimeRemaining | null {
 }
 
 const HEADLINE_WORDS = "MailThur is launching soon.".split(" ");
+
+const FEATURES = [
+  {
+    icon: TrendingUp,
+    title: "Automatic Inbox Warmup",
+    description:
+      "Your sender reputation is everything in cold email. MailThur builds it for you automatically, so your emails consistently land in inboxes, not spam folders. No technical setup. No manual configuration. Just connect your inbox and we handle the rest.",
+  },
+  {
+    icon: RefreshCw,
+    title: "Inbox rotation",
+    description:
+      "Spread sends across multiple connected accounts to protect deliverability.",
+  },
+  {
+    icon: Mail,
+    title: "Reply detection",
+    description:
+      "Sequences stop automatically when a prospect responds to your outreach.",
+  },
+  {
+    icon: BarChart3,
+    title: "Open tracking",
+    description:
+      "See who opened your emails with built-in pixel tracking.",
+  },
+  {
+    icon: Shield,
+    title: "Unsubscribe handling",
+    description:
+      "One-click unsubscribe links are included on every message.",
+  },
+  {
+    icon: Users,
+    title: "LeadThur integration",
+    description:
+      "Import contacts instantly from LeadThur into your campaigns.",
+  },
+];
 
 const wordVariants = {
   hidden: { opacity: 0, y: 24 },
@@ -130,6 +177,33 @@ export default function ComingSoon({ launchDate }: ComingSoonProps) {
           )}
         </motion.div>
       </div>
+
+      <section
+        id="features"
+        className="relative z-10 mt-20 w-full max-w-6xl px-2 text-left sm:px-4"
+      >
+        <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">
+          Built for serious outreach
+        </h2>
+        <p className="mx-auto mt-4 max-w-2xl text-center text-violet-200/70">
+          Everything you need to run professional cold email campaigns from your
+          own inbox.
+        </p>
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map((feature) => (
+            <div
+              key={feature.title}
+              className="rounded-xl border border-violet-500/20 bg-[#0D0F1A]/90 p-5 backdrop-blur-sm"
+            >
+              <feature.icon className="h-6 w-6 text-violet-400" />
+              <h3 className="mt-4 font-semibold text-white">{feature.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-violet-200/70">
+                {feature.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

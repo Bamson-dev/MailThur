@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Inbox, Mail, Rocket } from "lucide-react";
 import AuthGate from "@/components/dashboard/AuthGate";
 import Card from "@/components/dashboard/Card";
+import InboxWarmupEducationCard from "@/components/dashboard/InboxWarmupEducationCard";
 import { useToast } from "@/components/dashboard/ToastProvider";
 import { createCampaign } from "@/lib/campaigns";
-import { getConnectInboxUrl } from "@/lib/inboxes";
+import { fetchInboxes, getConnectInboxUrl } from "@/lib/inboxes";
 import {
   getSessionEmail,
   markOnboardingDone,
@@ -47,6 +48,33 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [step, setStep] = useState(0);
+  const [inboxConnected, setInboxConnected] = useState(false);
+  const [checkingInbox, setCheckingInbox] = useState(false);
+
+  const checkInboxConnection = useCallback(async () => {
+    setCheckingInbox(true);
+    try {
+      const inboxes = await fetchInboxes();
+      const connected = inboxes.length > 0;
+      setInboxConnected(connected);
+      if (connected) {
+        setStep(1);
+      }
+    } catch {
+      // Keep connect UI if inbox check fails
+    } finally {
+      setCheckingInbox(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("connected") === "success") {
+      setInboxConnected(true);
+      setStep(1);
+    }
+    checkInboxConnection();
+  }, [checkInboxConnection]);
 
   function finish() {
     const email = getSessionEmail();
@@ -116,8 +144,20 @@ export default function OnboardingPage() {
               </ul>
             ) : null}
 
-            {step === 1 && current.trustNote ? (
+            {step === 1 && !inboxConnected && current.trustNote ? (
               <p className="mt-6 text-xs text-muted">{current.trustNote}</p>
+            ) : null}
+
+            {step === 1 && inboxConnected ? (
+              <>
+                <div className="mt-6 flex items-center justify-center gap-2 rounded-lg border border-success/30 bg-success/10 px-4 py-3">
+                  <Check className="h-4 w-4 shrink-0 text-success" />
+                  <p className="text-sm font-medium text-success">
+                    Inbox connected successfully.
+                  </p>
+                </div>
+                <InboxWarmupEducationCard />
+              </>
             ) : null}
           </div>
 
@@ -131,21 +171,31 @@ export default function OnboardingPage() {
                 Start Setup
               </button>
             ) : step === 1 ? (
-              <>
-                <a
-                  href={getConnectInboxUrl()}
-                  className="block w-full rounded-lg bg-accent px-4 py-3 text-center text-sm font-semibold text-white hover:bg-accent/90"
-                >
-                  Connect Gmail Inbox
-                </a>
+              inboxConnected ? (
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="w-full text-sm text-muted hover:text-body"
+                  className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-white hover:bg-accent/90"
                 >
-                  Skip for now
+                  Continue
                 </button>
-              </>
+              ) : (
+                <>
+                  <a
+                    href={getConnectInboxUrl()}
+                    className="block w-full rounded-lg bg-accent px-4 py-3 text-center text-sm font-semibold text-white hover:bg-accent/90"
+                  >
+                    {checkingInbox ? "Checking inbox…" : "Connect Gmail Inbox"}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="w-full text-sm text-muted hover:text-body"
+                  >
+                    Skip for now
+                  </button>
+                </>
+              )
             ) : (
               <>
                 <button
