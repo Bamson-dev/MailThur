@@ -43,8 +43,12 @@ const wordVariants = {
   }),
 };
 
-export default function ComingSoon() {
-  const launchDateString = process.env.NEXT_PUBLIC_LAUNCH_DATE;
+interface ComingSoonProps {
+  launchDate?: string;
+}
+
+export default function ComingSoon({ launchDate }: ComingSoonProps) {
+  const launchDateString = launchDate ?? process.env.NEXT_PUBLIC_LAUNCH_DATE;
   const [timeRemaining, setTimeRemaining] = useState<TimeRemaining | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
@@ -105,7 +109,7 @@ export default function ComingSoon() {
           transition={{ delay: 0.9, duration: 0.6, ease: "easeOut" }}
         >
           Connect your inboxes. We handle the sequencing, rotation, and
-          scheduling. Launching in 72 hours.
+          scheduling.
         </motion.p>
 
         <motion.div
