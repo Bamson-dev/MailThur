@@ -19,7 +19,7 @@ export default function PublicFooter() {
             <ul className="mt-4 space-y-2 text-sm">
               <li>
                 <Link href="/privacy" className="text-body hover:text-white">
-                  Privacy
+                  Privacy Policy
                 </Link>
               </li>
               <li>
@@ -46,13 +46,6 @@ export default function PublicFooter() {
               >
                 support@mailthur.com
               </a>
-            </p>
-            <p className="mt-4 text-sm text-muted">
-              Pdigital Marketstore Ltd
-              <br />
-              RC 8015428
-              <br />
-              Lagos, Nigeria
             </p>
           </div>
         </div>

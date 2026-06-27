@@ -17,6 +17,7 @@ interface PlanCardsProps {
   onCheckout?: (plan: UpgradePlan) => void;
   signupHref?: string;
   compact?: boolean;
+  paidOnly?: boolean;
 }
 
 function isUpgradePlan(id: string): id is UpgradePlan {
@@ -90,16 +91,23 @@ export default function PlanCards({
   onCheckout,
   signupHref,
   compact = false,
+  paidOnly = false,
 }: PlanCardsProps) {
+  const plans = paidOnly
+    ? PAID_PLAN_CARDS.filter((plan) => !plan.isEnterprise)
+    : PAID_PLAN_CARDS;
+
   return (
     <div
       className={
         compact
           ? "grid gap-3 sm:grid-cols-3"
-          : "grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+          : paidOnly
+            ? "grid gap-4 md:grid-cols-3"
+            : "grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       }
     >
-      {PAID_PLAN_CARDS.map((plan) => {
+      {plans.map((plan) => {
         const isCurrent = currentPlan === plan.id;
 
         return (

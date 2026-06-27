@@ -8,12 +8,8 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import PlanCards, {
-  ComparisonTable,
-  TrustBadges,
-} from "@/components/dashboard/PlanCards";
+import PlanCards from "@/components/dashboard/PlanCards";
 import PublicPageShell from "./PublicPageShell";
-import WaitlistForm from "./WaitlistForm";
 
 const FEATURES = [
   {
@@ -26,31 +22,29 @@ const FEATURES = [
     icon: Zap,
     title: "Automatic sending ramp",
     description:
-      "Gradually increase daily volume so new inboxes warm up safely.",
+      "Gradually increase daily volume to protect your sender reputation.",
   },
   {
     icon: Mail,
     title: "Reply detection",
     description:
-      "Sequences stop automatically when a prospect responds to your outreach.",
+      "Sequences stop automatically when someone responds to your outreach.",
   },
   {
     icon: BarChart3,
     title: "Open tracking",
-    description:
-      "See who opened your emails with built-in pixel tracking.",
+    description: "See who opened your emails with built-in pixel technology.",
   },
   {
     icon: Shield,
     title: "Unsubscribe handling",
-    description:
-      "One-click unsubscribe links are included on every message.",
+    description: "One-click unsubscribe links are built in on every message.",
   },
   {
     icon: Users,
     title: "LeadThur integration",
     description:
-      "Import contacts instantly from LeadThur into your campaigns.",
+      "Import contacts directly from LeadThur into your campaigns.",
   },
 ];
 
@@ -63,22 +57,16 @@ const STEPS = [
   },
   {
     step: "2",
-    title: "Build your sequence with personalized follow-ups",
+    title: "Build your outreach sequence with personalized follow-ups",
     description:
       "Write multi-step campaigns with delays, personalization, and smart timing.",
   },
   {
     step: "3",
-    title: "Launch your campaign and track every open and reply",
+    title: "Launch and track every open and reply automatically",
     description:
       "Send from your own inbox, monitor performance, and close more deals.",
   },
-];
-
-const TESTIMONIALS = [
-  { name: "Your name here", role: "Freelancer" },
-  { name: "Your name here", role: "Agency owner" },
-  { name: "Your name here", role: "Consultant" },
 ];
 
 export default function LandingPage() {
@@ -92,8 +80,7 @@ export default function LandingPage() {
           </h1>
           <p className="mx-auto mt-6 max-w-3xl text-lg text-body sm:text-xl">
             MailThur sends cold emails from your own Gmail account, handles
-            follow-ups automatically, and tracks every open and reply, so you
-            spend your time closing, not searching.
+            follow-ups automatically, and tracks every open and reply.
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
@@ -116,32 +103,6 @@ export default function LandingPage() {
             <span>No credit card required</span>
             <span className="hidden sm:inline">•</span>
             <span>Cancel anytime</span>
-          </div>
-          <div className="mt-12">
-            <WaitlistForm />
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-border-subtle bg-surface/40 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl text-center">
-          <p className="text-sm text-body">
-            Join freelancers and agency owners already using MailThur to send
-            smarter outreach.
-          </p>
-          <div className="mt-6 grid gap-6 sm:grid-cols-3">
-            <div>
-              <p className="text-3xl font-bold text-white">2M+</p>
-              <p className="mt-1 text-sm text-muted">Emails sent</p>
-            </div>
-            <div>
-              <p className="text-3xl font-bold text-white">3%</p>
-              <p className="mt-1 text-sm text-muted">Avg. reply rate benchmark</p>
-            </div>
-            <div>
-              <p className="text-3xl font-bold text-white">40+</p>
-              <p className="mt-1 text-sm text-muted">Countries supported</p>
-            </div>
           </div>
         </div>
       </section>
@@ -175,7 +136,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="features" className="bg-surface/30 px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+      <section
+        id="features"
+        className="bg-surface/30 px-4 py-16 sm:px-6 lg:px-8 lg:py-24"
+      >
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-3xl font-bold text-white">
             Built for serious outreach
@@ -210,40 +174,7 @@ export default function LandingPage() {
             Start with a 3-day free trial. Upgrade when you are ready to scale.
           </p>
           <div className="mt-12">
-            <PlanCards signupHref="/dashboard" />
-          </div>
-          <div className="mt-8">
-            <TrustBadges />
-          </div>
-          <div className="mt-12 overflow-hidden rounded-xl border border-border-subtle bg-surface p-6">
-            <h3 className="text-lg font-semibold text-white">
-              How MailThur compares
-            </h3>
-            <div className="mt-6">
-              <ComparisonTable />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-surface/30 px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
-        <div className="mx-auto max-w-6xl">
-          <h2 className="text-center text-3xl font-bold text-white">
-            Trusted by outreach professionals
-          </h2>
-          <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {TESTIMONIALS.map((item, index) => (
-              <div
-                key={index}
-                className="rounded-xl border border-dashed border-border-subtle bg-[#0D0F1A] p-6"
-              >
-                <p className="text-sm italic text-body">
-                  &ldquo;Testimonial coming soon.&rdquo;
-                </p>
-                <p className="mt-4 font-semibold text-white">{item.name}</p>
-                <p className="text-sm text-muted">{item.role}</p>
-              </div>
-            ))}
+            <PlanCards signupHref="/dashboard" paidOnly />
           </div>
         </div>
       </section>
